@@ -140,7 +140,6 @@ button { cursor: pointer; }
 
 /* ---------- Main ---------- */
 .topbar { margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
-.topbar .icon-btn { background: rgb(0 0 0 / 0.4); width: 36px; height: 36px; flex: none; }
 #search {
   width: min(420px, 100%);
   padding: 12px 18px;

@@ -140,7 +140,13 @@ function visibleSongs() {
 function route() {
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
-  if (song) showDetail(song);
+  if (song && isMobile.matches) {
+    // En el celular, el link de una canción abre la pantalla de reproducción (no la página del vinilo).
+    history.replaceState(null, "", "#/"); // al cerrar la pantalla se queda en el inicio, sin links viejos
+    showHome();
+    if (currentId !== song.id) playSong(song.id); // si el navegador bloquea el autoplay, queda lista para dar play
+    openNowPlaying();
+  } else if (song) showDetail(song);
   else showHome();
 }
 window.addEventListener("hashchange", route);
@@ -731,7 +737,6 @@ seek.addEventListener("change", () => {
 
 $("volume").addEventListener("input", (e) => (audio.volume = Number(e.target.value)));
 
-$("back").addEventListener("click", () => history.back());
 
 /* ---------- Visualizador ---------- */
 
