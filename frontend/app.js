@@ -120,6 +120,7 @@ async function deleteSong(song) {
     audio.removeAttribute("src");
     audio.load();
     currentId = null;
+    setMediaMetadata(null);
     $("np-title").textContent = "Nada en reproducción";
     $("np-artist").innerHTML = "&nbsp;";
     $("np-cover").textContent = "";
@@ -626,6 +627,7 @@ function markActive() {
 
 function updatePlayState() {
   setIcon(playBtn, audio.paused ? "play" : "pause");
+  syncMediaState();
   syncNowPlaying();
   // La canción "en pantalla" es la del disco central (inicio) o la del detalle.
   const shownId = deck ? deck.list[deck.index].id : detailId;
@@ -670,6 +672,7 @@ function playSong(id) {
   const cover = $("np-cover");
   cover.textContent = initial(song);
   cover.style.cssText = coverStyle(song);
+  setMediaMetadata(song);
   markActive();
   updatePlayState();
 }
@@ -705,6 +708,88 @@ audio.addEventListener("ended", () => {
   audio.play().catch(() => {});
 });
 audio.addEventListener("loadedmetadata", () => ($("time-dur").textContent = formatTime(audio.duration)));
+
+/* ---------- Notificación y pantalla de bloqueo (Media Session) ---------- */
+// Le cuenta al teléfono qué suena para que la notificación y la pantalla de bloqueo muestren título,
+// artista y portada, con anterior / pausa / siguiente y la barra de tiempo (como YouTube Music).
+// Los botones "me gusta" y "aleatorio" de esas notificaciones no existen para páginas web.
+
+const hasMediaSession = "mediaSession" in navigator;
+const artCache = new Map(); // id de canción -> portada como imagen (data URL)
+
+// La base de datos no guarda imágenes: la portada se dibuja con los mismos colores que se ven en la app.
+function coverArt(song) {
+  if (artCache.has(song.id)) return artCache.get(song.id);
+  const size = 512;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext("2d");
+  const h = hue(song);
+  const gradient = g.createLinearGradient(0, 0, size, size);
+  gradient.addColorStop(0, `hsl(${h} 70% 45%)`);
+  gradient.addColorStop(1, `hsl(${(h + 50) % 360} 70% 25%)`);
+  g.fillStyle = gradient;
+  g.fillRect(0, 0, size, size);
+  g.fillStyle = "#fff";
+  g.font = "800 260px system-ui, sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.shadowColor = "rgb(0 0 0 / 0.35)";
+  g.shadowBlur = 24;
+  g.fillText(initial(song), size / 2, size / 2 + 12);
+  const url = canvas.toDataURL("image/png");
+  artCache.set(song.id, url);
+  return url;
+}
+
+function setMediaMetadata(song) {
+  if (!hasMediaSession) return;
+  navigator.mediaSession.metadata = song
+    ? new MediaMetadata({
+        title: song.title,
+        artist: song.artist,
+        album: "Korte Music",
+        artwork: [{ src: coverArt(song), sizes: "512x512", type: "image/png" }],
+      })
+    : null;
+}
+
+function syncMediaState() {
+  if (!hasMediaSession) return;
+  navigator.mediaSession.playbackState = currentId === null ? "none" : audio.paused ? "paused" : "playing";
+}
+
+let lastMediaPos = -1;
+function syncMediaPosition(force) {
+  if (!hasMediaSession || !Number.isFinite(audio.duration) || audio.duration <= 0) return;
+  const pos = Math.floor(audio.currentTime);
+  if (!force && pos === lastMediaPos) return; // una vez por segundo basta
+  lastMediaPos = pos;
+  try {
+    navigator.mediaSession.setPositionState({
+      duration: audio.duration,
+      playbackRate: audio.playbackRate || 1,
+      position: Math.min(audio.currentTime, audio.duration),
+    });
+  } catch { /* algunos navegadores rechazan valores fuera de rango mientras carga */ }
+}
+for (const ev of ["loadedmetadata", "timeupdate", "seeked", "play", "pause"]) {
+  audio.addEventListener(ev, () => syncMediaPosition(ev !== "timeupdate"));
+}
+
+if (hasMediaSession) {
+  const handle = (action, fn) => {
+    try { navigator.mediaSession.setActionHandler(action, fn); } catch { /* acción no soportada */ }
+  };
+  handle("play", () => startPlayback());
+  handle("pause", () => audio.pause());
+  handle("previoustrack", () => step(-1));
+  handle("nexttrack", () => step(1));
+  handle("seekto", (d) => {
+    if (Number.isFinite(audio.duration)) audio.currentTime = Math.min(d.seekTime, audio.duration);
+  });
+}
+
 // Cuenta una reproducción cuando se han escuchado 10 s de verdad (o la mitad, si la canción es más corta).
 // Se suman solo avances normales: saltar la barra de progreso no cuenta como escuchar.
 let listened = 0;
