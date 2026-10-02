@@ -10,6 +10,7 @@ class Song(SQLModel, table=True):
     file_path: str  # nombre del archivo dentro de uploads/
     content_type: str = "audio/mpeg"
     plays: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    likes: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 
@@ -20,4 +21,5 @@ class SongRead(SQLModel):
     title: str
     artist: str
     plays: int = 0
+    likes: int = 0
     created_at: datetime

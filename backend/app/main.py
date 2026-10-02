@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from sqlalchemy import update
+from sqlalchemy import case, update
 from sqlmodel import Session, select
 
 from . import storage
@@ -126,6 +126,26 @@ def count_play(song_id: int, session: Session = Depends(get_session)):
         raise HTTPException(404, "Canción no encontrada")
     session.commit()
     return {"plays": session.exec(select(Song.plays).where(Song.id == song_id)).one()}
+
+
+def _change_likes(session: Session, song_id: int, delta: int) -> dict:
+    # UPDATE atómico; al quitar un "me gusta" el contador nunca baja de 0.
+    new_value = Song.likes + 1 if delta > 0 else case((Song.likes > 0, Song.likes - 1), else_=0)
+    result = session.exec(update(Song).where(Song.id == song_id).values(likes=new_value))
+    if result.rowcount == 0:
+        raise HTTPException(404, "Canción no encontrada")
+    session.commit()
+    return {"likes": session.exec(select(Song.likes).where(Song.id == song_id)).one()}
+
+
+@app.post("/songs/{song_id}/like")
+def like_song(song_id: int, session: Session = Depends(get_session)):
+    return _change_likes(session, song_id, +1)
+
+
+@app.delete("/songs/{song_id}/like")
+def unlike_song(song_id: int, session: Session = Depends(get_session)):
+    return _change_likes(session, song_id, -1)
 
 
 @app.get("/songs/{song_id}/stream")
