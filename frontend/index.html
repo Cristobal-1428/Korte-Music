@@ -172,6 +172,26 @@
     <button type="button" class="tab" id="tab-upload"><svg class="ic"><use href="#i-plus"/></svg>Subir</button>
   </nav>
 
+  <div id="song-menu" class="song-menu" role="menu" hidden>
+    <button type="button" role="menuitem" id="menu-edit">Editar</button>
+    <button type="button" role="menuitem" id="menu-delete" class="danger">Eliminar</button>
+  </div>
+
+  <dialog id="edit-dialog">
+    <form id="edit-form">
+      <h2>Editar canción</h2>
+      <label>Título <input type="text" name="title" required maxlength="200" /></label>
+      <label>Artista <input type="text" name="artist" required maxlength="200" /></label>
+      <label>Nueva portada (opcional) <input type="file" name="cover" accept="image/jpeg,image/png,image/webp" /></label>
+      <label class="check" id="edit-remove-wrap"><input type="checkbox" name="remove_cover" value="true" /> Quitar la portada actual</label>
+      <p id="edit-status" role="status"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-ghost" id="cancel-edit">Cancelar</button>
+        <button type="submit" class="btn-primary" id="submit-edit">Guardar</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="upload-dialog">
     <form id="upload-form">
       <h2>Subir canción</h2>

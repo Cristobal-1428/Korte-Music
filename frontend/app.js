@@ -153,6 +153,105 @@ function resetPlayer() {
   $("time-dur").textContent = "0:00";
 }
 
+/* ---------- Menú ⋮ de cada canción (editar / eliminar) ---------- */
+
+const songMenu = $("song-menu");
+let menuSong = null;
+
+function closeSongMenu() {
+  songMenu.hidden = true;
+  menuSong = null;
+}
+
+function menuButton(song, className) {
+  const btn = el("button", className, "⋮");
+  btn.type = "button";
+  btn.title = "Más opciones";
+  btn.setAttribute("aria-label", `Opciones de ${song.title}`);
+  btn.setAttribute("aria-haspopup", "menu");
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation(); // no abrir el detalle ni reproducir
+    if (menuSong === song && !songMenu.hidden) return closeSongMenu();
+    menuSong = song;
+    songMenu.hidden = false;
+    const r = btn.getBoundingClientRect();
+    const w = songMenu.offsetWidth;
+    const h = songMenu.offsetHeight;
+    songMenu.style.left = `${Math.max(8, Math.min(r.right - w, innerWidth - w - 8))}px`;
+    songMenu.style.top = `${r.bottom + h + 8 > innerHeight ? Math.max(8, r.top - h - 4) : r.bottom + 4}px`;
+  });
+  return btn;
+}
+
+document.addEventListener("click", (e) => { if (!songMenu.contains(e.target)) closeSongMenu(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSongMenu(); });
+addEventListener("scroll", closeSongMenu, true);
+addEventListener("resize", closeSongMenu);
+$("menu-delete").addEventListener("click", () => {
+  const song = menuSong;
+  closeSongMenu();
+  if (song) deleteSong(song);
+});
+$("menu-edit").addEventListener("click", () => {
+  const song = menuSong;
+  closeSongMenu();
+  if (song) openEdit(song);
+});
+
+const editDialog = $("edit-dialog");
+const editForm = $("edit-form");
+const editStatus = $("edit-status");
+let editingSong = null;
+
+function openEdit(song) {
+  editingSong = song;
+  editForm.reset();
+  editForm.elements.title.value = song.title;
+  editForm.elements.artist.value = song.artist;
+  $("edit-remove-wrap").hidden = !song.has_cover;
+  editStatus.textContent = "";
+  editStatus.className = "";
+  editDialog.showModal();
+}
+$("cancel-edit").addEventListener("click", () => editDialog.close());
+
+editForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const song = editingSong;
+  const submit = $("submit-edit");
+  submit.disabled = true;
+  editStatus.className = "";
+  editStatus.textContent = "Guardando...";
+  try {
+    const body = new FormData(editForm);
+    const coverFile = editForm.elements.cover.files[0];
+    body.delete("cover");
+    if (coverFile) {
+      try {
+        body.append("cover", await squareCover(coverFile), "cover.jpg");
+      } catch {
+        throw new Error("No se pudo leer la imagen de portada");
+      }
+    }
+    const res = await adminFetch(`${API_URL}/songs/${song.id}`, { method: "PATCH", body });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo guardar");
+    }
+    editDialog.close();
+    await loadSongs();
+    if (currentId === song.id && findSong(song.id)) {
+      showInPlayer(findSong(song.id));
+      syncNowPlaying();
+    }
+  } catch (e) {
+    editStatus.className = "error";
+    editStatus.textContent = e.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
 // Borra la canción (fila y audio).
 async function deleteSong(song) {
   if (!confirm(`¿Eliminar "${song.title}" de ${song.artist}? Esta acción no se puede deshacer.`)) return;
@@ -253,15 +352,7 @@ function renderLibrary() {
     cover.style.cssText = coverStyle(song);
     const text = el("div", "li-text");
     text.append(el("span", "li-title", song.title), el("span", "li-artist", song.artist));
-    const del = el("button", "li-delete", "✕");
-    del.type = "button";
-    del.title = "Eliminar canción";
-    del.setAttribute("aria-label", `Eliminar ${song.title}`);
-    del.addEventListener("click", (e) => {
-      e.stopPropagation(); // no abrir el detalle
-      deleteSong(song);
-    });
-    li.append(cover, text, del);
+    li.append(cover, text, menuButton(song, "li-delete"));
     li.addEventListener("click", () => openSong(song.id));
     libraryList.append(li);
   }
@@ -475,7 +566,7 @@ function refreshPlays() {
   syncNowPlaying();
 }
 
-// Fila compacta: toca para reproducir; › abre el detalle y ✕ elimina.
+// Fila compacta: toca para reproducir; › abre el detalle y ⋮ abre editar / eliminar.
 function makeRow(song, withDetail = true) {
   const cover = el("div", "m-cover", initial(song));
   cover.style.cssText = coverStyle(song);
@@ -492,14 +583,10 @@ function makeRow(song, withDetail = true) {
   detail.type = "button";
   detail.setAttribute("aria-label", `Ver detalle de ${song.title}`);
   detail.addEventListener("click", (e) => { e.stopPropagation(); openSong(song.id); });
-  const del = el("button", "m-btn m-del", "✕");
-  del.type = "button";
-  del.setAttribute("aria-label", `Eliminar ${song.title}`);
-  del.addEventListener("click", (e) => { e.stopPropagation(); deleteSong(song); });
 
   const row = el("div", "m-row");
   row.dataset.id = song.id;
-  row.append(cover, meta, ...(withDetail ? [detail] : []), del);
+  row.append(cover, meta, ...(withDetail ? [detail] : []), menuButton(song, "m-btn m-del"));
   row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id)));
   return row;
 }
@@ -804,6 +891,13 @@ function playSong(id) {
   audio.src = streamUrl(song);
   startPlayback();
 
+  showInPlayer(song);
+  markActive();
+  updatePlayState();
+}
+
+// Pinta título, artista y portada de la canción cargada en la barra, el visualizador y la notificación.
+function showInPlayer(song) {
   $("np-title").textContent = song.title;
   $("np-artist").textContent = song.artist;
   $("viz-title").textContent = song.title;
@@ -811,9 +905,8 @@ function playSong(id) {
   const cover = $("np-cover");
   cover.textContent = initial(song);
   cover.style.cssText = coverStyle(song);
+  artCache.delete(song.id);
   setMediaMetadata(song);
-  markActive();
-  updatePlayState();
 }
 
 function step(delta) {

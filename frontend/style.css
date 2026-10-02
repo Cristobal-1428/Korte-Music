@@ -806,3 +806,24 @@ dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent
 /* Sin canción cargada no se muestra la barra del reproductor. */
 .no-track .player { display: none; }
 .no-track .app { grid-template-rows: 1fr; }
+
+/* ---------- Menú ⋮ de canción ---------- */
+.li-delete, .m-del { font-weight: 800; letter-spacing: 0; }
+.li-delete:hover { color: var(--text); background: var(--panel-hover); }
+.m-del { font-size: 1.3rem; opacity: 1; }
+.song-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 150px;
+  display: grid;
+  padding: 6px;
+  border-radius: 12px;
+  background: #2a2a2d;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.5);
+}
+.song-menu[hidden] { display: none; }
+.song-menu button { border: 0; background: none; color: var(--text); text-align: left; padding: 11px 14px; border-radius: 8px; font: inherit; cursor: pointer; }
+.song-menu button:hover, .song-menu button:active { background: rgb(255 255 255 / 0.08); }
+.song-menu .danger { color: #ff6b7d; }
+#edit-status { min-height: 1.2em; margin: 0; color: var(--muted); }
+#edit-status.error { color: #ff6b7d; }

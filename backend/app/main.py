@@ -105,6 +105,19 @@ def admin_session(x_admin_key: str | None = Header(default=None)):
 
 # ----------------------------------------------------------------------- canciones
 
+async def _read_cover(cover: UploadFile | None) -> tuple[str | None, bytes | None, str]:
+    """Valida la portada opcional; un campo de archivo vacío llega sin nombre y se ignora."""
+    if not cover or not cover.filename:
+        return None, None, ""
+    ext = Path(cover.filename).suffix.lower()
+    if ext not in COVER_TYPES:
+        raise HTTPException(400, f"Formato de portada no permitido. Usa: {', '.join(COVER_TYPES)}")
+    data = await cover.read(MAX_COVER_BYTES + 1)
+    if len(data) > MAX_COVER_BYTES:
+        raise HTTPException(413, f"Portada demasiado grande (máx. {MAX_COVER_BYTES // (1024 * 1024)} MB)")
+    return f"cover-{uuid.uuid4().hex}{ext}", data, ext
+
+
 @app.post("/songs", response_model=SongRead, status_code=201, dependencies=[Depends(require_admin)])
 async def upload_song(
     title: str = Form(..., min_length=1, max_length=200),
@@ -123,16 +136,7 @@ async def upload_song(
     # Nombre generado en el servidor: evita colisiones y path traversal.
     stored_name = f"{uuid.uuid4().hex}{ext}"
 
-    # La portada es opcional; un campo de archivo vacío llega sin nombre y se ignora.
-    cover_name = cover_data = None
-    cover_ext = Path(cover.filename or "").suffix.lower() if cover else ""
-    if cover and cover.filename:
-        if cover_ext not in COVER_TYPES:
-            raise HTTPException(400, f"Formato de portada no permitido. Usa: {', '.join(COVER_TYPES)}")
-        cover_data = await cover.read(MAX_COVER_BYTES + 1)
-        if len(cover_data) > MAX_COVER_BYTES:
-            raise HTTPException(413, f"Portada demasiado grande (máx. {MAX_COVER_BYTES // (1024 * 1024)} MB)")
-        cover_name = f"cover-{uuid.uuid4().hex}{cover_ext}"
+    cover_name, cover_data, cover_ext = await _read_cover(cover)
 
     chunks: list[bytes] = []
     size = 0
@@ -165,6 +169,42 @@ async def upload_song(
     session.add(song)
     session.commit()
     session.refresh(song)
+    return song
+
+
+@app.patch("/songs/{song_id}", response_model=SongRead, dependencies=[Depends(require_admin)])
+async def edit_song(
+    song_id: int,
+    title: str = Form(..., min_length=1, max_length=200),
+    artist: str = Form(..., min_length=1, max_length=200),
+    remove_cover: bool = Form(False),
+    cover: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
+):
+    """Cambia título y artista; la portada se reemplaza si llega una nueva, o se quita con remove_cover."""
+    song = session.get(Song, song_id)
+    if song is None:
+        raise HTTPException(404, "Canción no encontrada")
+    cover_name, cover_data, cover_ext = await _read_cover(cover)
+    old_cover = song.cover_path
+    if cover_name:
+        try:
+            await storage.save(cover_name, cover_data, COVER_TYPES[cover_ext], private=song.is_private)
+        except Exception as exc:
+            raise HTTPException(502, f"No se pudo guardar la portada: {exc}")
+        song.cover_path = cover_name
+    elif remove_cover:
+        song.cover_path = None
+    song.title = title.strip()
+    song.artist = artist.strip()
+    session.add(song)
+    session.commit()
+    session.refresh(song)
+    if old_cover and old_cover != song.cover_path:
+        try:
+            await storage.delete(old_cover, private=song.is_private)
+        except Exception:
+            pass  # una portada vieja que no se pudo borrar no invalida el cambio
     return song
 
 
