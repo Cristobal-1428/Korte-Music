@@ -11,7 +11,10 @@ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 BUCKET = os.getenv("SUPABASE_BUCKET", "songs")
 USE_SUPABASE = bool(SUPABASE_URL and SUPABASE_KEY)
 
-_AUTH = {"Authorization": f"Bearer {SUPABASE_KEY}", "apikey": SUPABASE_KEY}
+# Las claves nuevas (sb_secret_...) no son JWT: van solo en "apikey". La clave clásica service_role sí lleva Bearer.
+_AUTH = {"apikey": SUPABASE_KEY}
+if not SUPABASE_KEY.startswith("sb_"):
+    _AUTH["Authorization"] = f"Bearer {SUPABASE_KEY}"
 
 
 def init_storage() -> None:
