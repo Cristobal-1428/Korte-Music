@@ -137,7 +137,15 @@ function visibleSongs() {
   return songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q));
 }
 
+let firstRoute = true;
+
 function route() {
+  if (firstRoute) {
+    // Al abrir el link siempre se ve el inicio, aunque la dirección traiga una canción (#/song/…).
+    // Dentro de la página, tocar una canción sí navega a ella.
+    firstRoute = false;
+    if (location.hash.startsWith("#/song/")) history.replaceState(null, "", location.pathname + location.search + "#/");
+  }
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
   if (song && isMobile.matches) {
@@ -944,7 +952,7 @@ async function toggleLike() {
 async function shareSong() {
   const song = currentSong();
   if (!song) return;
-  const url = `${location.origin}${location.pathname}#/song/${song.id}`;
+  const url = location.origin + location.pathname; // el link abre el inicio de la app
   const label = $("npf-share-label");
   try {
     if (navigator.share) await navigator.share({ title: song.title, text: `${song.title} – ${song.artist}`, url });
