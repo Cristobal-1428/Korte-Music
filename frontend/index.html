@@ -25,6 +25,9 @@
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></symbol>
     <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+    <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 11 9-8 9 8M5 10v10h5v-6h4v6h5V10"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   </svg>
 
   <div class="app">
@@ -33,6 +36,7 @@
 
       <nav class="nav">
         <a href="#/" class="nav-item active" id="nav-home">Inicio</a>
+        <a href="#/private" class="nav-item" id="nav-private"><svg class="ic ic-sm"><use href="#i-lock"/></svg>Privado</a>
         <button type="button" class="nav-item" id="nav-upload">Subir canción</button>
       </nav>
 
@@ -147,8 +151,9 @@
 
   <!-- Navegación inferior: solo se ve en el celular (el menú lateral no cabe). -->
   <nav class="tabbar" aria-label="Navegación">
-    <a href="#/" class="tab active" id="tab-home"><span class="tab-ico">⌂</span>Inicio</a>
-    <button type="button" class="tab" id="tab-upload"><span class="tab-ico">＋</span>Subir</button>
+    <a href="#/" class="tab active" id="tab-home"><svg class="ic"><use href="#i-home"/></svg>Inicio</a>
+    <a href="#/private" class="tab" id="tab-private"><svg class="ic"><use href="#i-lock"/></svg>Privado</a>
+    <button type="button" class="tab" id="tab-upload"><svg class="ic"><use href="#i-plus"/></svg>Subir</button>
   </nav>
 
   <dialog id="upload-dialog">
@@ -157,6 +162,7 @@
       <label>Título <input type="text" name="title" required maxlength="200" /></label>
       <label>Artista <input type="text" name="artist" required maxlength="200" /></label>
       <label>Archivo de audio <input type="file" name="file" accept=".mp3,.wav,.ogg,.m4a,.flac,audio/*" required /></label>
+      <label class="check"><input type="checkbox" name="is_private" value="true" /> Privada (solo tú la ves)</label>
       <p id="upload-status" role="status"></p>
       <div class="dialog-actions">
         <button type="button" class="btn-ghost" id="cancel-upload">Cancelar</button>

@@ -22,7 +22,9 @@ function setIcon(btn, name) {
 
 const isMobile = window.matchMedia("(max-width: 800px)");
 
-let songs = [];
+let songs = []; // canciones públicas
+let privateSongs = []; // canciones privadas: solo llegan con la clave de administrador
+let privateToken = null; // permiso temporal para escucharlas (lo entrega /admin/session)
 let currentId = null; // canción cargada en el reproductor
 let detailId = null; // canción abierta en la vista de detalle
 const durations = new Map(); // id -> segundos (la BD no guarda la duración)
@@ -63,9 +65,12 @@ function el(tag, className, text) {
   return node;
 }
 
-function streamUrl(id) {
-  return `${API_URL}/songs/${id}/stream`;
+function streamUrl(song) {
+  const base = `${API_URL}/songs/${song.id}/stream`;
+  return song.is_private ? `${base}?t=${encodeURIComponent(privateToken || "")}` : base;
 }
+
+const findSong = (id) => songs.find((s) => s.id === id) || privateSongs.find((s) => s.id === id);
 
 // Lee la duración pidiendo solo los metadatos (el servidor responde con Range).
 function loadDuration(song, onReady) {
@@ -76,26 +81,42 @@ function loadDuration(song, onReady) {
     durations.set(song.id, probe.duration);
     onReady(probe.duration);
   });
-  probe.src = streamUrl(song.id);
+  probe.src = streamUrl(song);
 }
 
 /* ---------- Carga y rutas ---------- */
 
 async function loadSongs() {
-  const res = await fetch(`${API_URL}/songs`);
+  await refreshAdminSession();
+  const res = await fetch(`${API_URL}/songs`, { headers: privateToken ? authHeaders() : {} });
   if (!res.ok) throw new Error("No se pudo cargar la biblioteca");
-  songs = await res.json();
+  const all = await res.json();
+  songs = all.filter((s) => !s.is_private);
+  privateSongs = all.filter((s) => s.is_private);
   renderLibrary();
   route();
+}
+
+function authHeaders() {
+  const key = pref.get("admin-key", "");
+  return key ? { "X-Admin-Key": key } : {};
+}
+
+// Con la clave guardada pide el permiso para las canciones privadas; si la clave ya no sirve, la olvida.
+async function refreshAdminSession() {
+  privateToken = null;
+  if (!pref.get("admin-key", "")) return;
+  try {
+    const res = await fetch(`${API_URL}/admin/session`, { headers: authHeaders() });
+    if (res.ok) privateToken = (await res.json()).token;
+    else if (res.status === 401) pref.set("admin-key", "");
+  } catch { /* sin conexión: se reintenta en la próxima carga */ }
 }
 
 // fetch para las acciones de administrador (subir y borrar). Si el servidor pide la clave, la pregunta una vez
 // y la recuerda en este navegador; si resulta incorrecta, la olvida para volver a preguntar la próxima vez.
 async function adminFetch(url, options = {}) {
-  const send = () => {
-    const key = pref.get("admin-key", "");
-    return fetch(url, { ...options, headers: { ...options.headers, ...(key ? { "X-Admin-Key": key } : {}) } });
-  };
+  const send = () => fetch(url, { ...options, headers: { ...options.headers, ...authHeaders() } });
   let res = await send();
   if (res.status === 401) {
     const key = prompt("Clave de administrador:");
@@ -105,6 +126,20 @@ async function adminFetch(url, options = {}) {
     if (res.status === 401) pref.set("admin-key", "");
   }
   return res;
+}
+
+// Detiene la reproducción y deja el reproductor vacío.
+function resetPlayer() {
+  audio.pause();
+  audio.removeAttribute("src");
+  audio.load();
+  currentId = null;
+  setMediaMetadata(null);
+  $("np-title").textContent = "Nada en reproducción";
+  $("np-artist").innerHTML = "&nbsp;";
+  $("np-cover").textContent = "";
+  $("np-cover").style.cssText = "";
+  $("time-dur").textContent = "0:00";
 }
 
 // Borra la canción (fila y audio).
@@ -122,18 +157,7 @@ async function deleteSong(song) {
   }
 
   durations.delete(song.id);
-  if (currentId === song.id) {
-    audio.pause();
-    audio.removeAttribute("src");
-    audio.load();
-    currentId = null;
-    setMediaMetadata(null);
-    $("np-title").textContent = "Nada en reproducción";
-    $("np-artist").innerHTML = "&nbsp;";
-    $("np-cover").textContent = "";
-    $("np-cover").style.cssText = "";
-    $("time-dur").textContent = "0:00";
-  }
+  if (currentId === song.id) resetPlayer();
   if (location.hash === `#/song/${song.id}`) location.hash = ""; // sale del detalle de la canción borrada
   await loadSongs().catch((e) => alert(e.message));
   updatePlayState();
@@ -154,6 +178,7 @@ function route() {
     firstRoute = false;
     if (location.hash.startsWith("#/song/")) history.replaceState(null, "", location.pathname + location.search + "#/");
   }
+  if (location.hash === "#/private") return showPrivate();
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
   if (song && isMobile.matches) {
@@ -304,6 +329,8 @@ function showHome() {
   stageCanvas = null;
   $("nav-home").classList.add("active");
   $("tab-home").classList.add("active");
+  $("nav-private").classList.remove("active");
+  $("tab-private").classList.remove("active");
 
   const list = visibleSongs();
   if (isMobile.matches && list.length) return showMobileHome(list);
@@ -428,7 +455,7 @@ function playsText(n) {
 // Cada elemento con data-plays-for muestra el contador de esa canción; data-plays-total, el de toda la biblioteca.
 function refreshPlays() {
   document.querySelectorAll("[data-plays-for]").forEach((node) => {
-    const song = songs.find((s) => s.id === Number(node.dataset.playsFor));
+    const song = findSong(Number(node.dataset.playsFor));
     if (song) node.textContent = node.dataset.prefix ? `${node.dataset.prefix}${playsText(song.plays)}` : playsText(song.plays);
   });
   document.querySelectorAll("[data-plays-total]").forEach((node) => {
@@ -438,7 +465,7 @@ function refreshPlays() {
 }
 
 // Fila compacta: toca para reproducir; › abre el detalle y ✕ elimina.
-function makeRow(song) {
+function makeRow(song, withDetail = true) {
   const cover = el("div", "m-cover", initial(song));
   cover.style.cssText = coverStyle(song);
   const meta = el("div", "m-meta");
@@ -461,7 +488,7 @@ function makeRow(song) {
 
   const row = el("div", "m-row");
   row.dataset.id = song.id;
-  row.append(cover, meta, detail, del);
+  row.append(cover, meta, ...(withDetail ? [detail] : []), del);
   row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id)));
   return row;
 }
@@ -526,6 +553,97 @@ function showMobileHome(list) {
 // Al girar el teléfono o cambiar el ancho, la vista se rehace con el diseño que corresponda.
 isMobile.addEventListener("change", () => route());
 
+/* ---------- Sección privada ---------- */
+
+function showPrivate() {
+  detailId = null;
+  vinylWrap = null;
+  deck = null;
+  homeStage = null;
+  stageCanvas = null;
+  main.style.setProperty("--tint", "hsl(260 30% 16%)");
+  syncViz();
+  $("nav-home").classList.remove("active");
+  $("tab-home").classList.remove("active");
+  $("nav-private").classList.add("active");
+  $("tab-private").classList.add("active");
+  view.replaceChildren(privateToken ? privateList() : privateLock());
+  main.scrollTop = 0;
+  markActive();
+  updatePlayState();
+}
+
+// Pantalla del candado: pide la clave. Sin ella no se llega a ninguna canción privada.
+function privateLock() {
+  const icon = el("div", "priv-icon");
+  icon.innerHTML = '<svg class="ic"><use href="#i-lock"/></svg>';
+  const input = el("input");
+  input.type = "password";
+  input.placeholder = "Clave de administrador";
+  input.autocomplete = "current-password";
+  input.required = true;
+  const enter = el("button", "big-play", "Entrar");
+  enter.type = "submit";
+  const msg = el("p", "priv-msg");
+  msg.setAttribute("role", "status");
+  const form = el("form", "priv-form");
+  form.append(input, enter);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    enter.disabled = true;
+    msg.className = "priv-msg";
+    msg.textContent = "Comprobando…";
+    pref.set("admin-key", input.value);
+    await refreshAdminSession(); // si la clave es mala, la olvida
+    enter.disabled = false;
+    if (!privateToken) {
+      msg.className = "priv-msg error";
+      msg.textContent = "Clave incorrecta.";
+      input.select();
+      return;
+    }
+    await loadSongs().catch((err) => alert(err.message)); // trae las privadas y vuelve a dibujar esta vista
+  });
+  const box = el("section", "priv-lock");
+  box.append(icon, el("h1", "", "Sección privada"), el("p", "empty", "Escribe la clave para ver tu música privada."), form, msg);
+  return box;
+}
+
+function privateList() {
+  const add = el("button", "big-play", "＋ Subir canción privada");
+  add.type = "button";
+  add.addEventListener("click", () => openUpload(null, true));
+  const out = el("button", "viz-chip", "Cerrar sesión privada");
+  out.type = "button";
+  out.addEventListener("click", lockPrivate);
+  const actions = el("div", "actions");
+  actions.append(add, out);
+
+  const box = el("section", "priv-list");
+  box.append(
+    el("h1", "page-title", "Privado"),
+    el("p", "m-stats", `${privateSongs.length} ${privateSongs.length === 1 ? "canción privada" : "canciones privadas"} · solo tú las ves`),
+    actions,
+  );
+  if (privateSongs.length === 0) {
+    box.append(el("p", "empty", "Aún no hay canciones privadas."));
+  } else {
+    const rows = el("div", "m-rows");
+    rows.append(...privateSongs.map((s) => makeRow(s, false)));
+    box.append(rows);
+  }
+  return box;
+}
+
+// Olvida la clave en este navegador y vuelve al inicio.
+function lockPrivate() {
+  pref.set("admin-key", "");
+  privateToken = null;
+  if (privateSongs.some((s) => s.id === currentId)) resetPlayer(); // si sonaba una privada, se detiene
+  privateSongs = [];
+  location.hash = "#/";
+}
+
 /* ---------- Vista: detalle de canción (escenario) ---------- */
 
 function showDetail(song) {
@@ -534,6 +652,8 @@ function showDetail(song) {
   homeStage = null;
   $("nav-home").classList.remove("active");
   $("tab-home").classList.remove("active");
+  $("nav-private").classList.remove("active");
+  $("tab-private").classList.remove("active");
   const h = hue(song);
   main.style.setProperty("--tint", `hsl(${h} 55% 20%)`);
 
@@ -661,7 +781,7 @@ function togglePlay() {
 }
 
 function playSong(id) {
-  const song = songs.find((s) => s.id === id);
+  const song = findSong(id);
   if (!song) return;
   currentId = id;
   listened = 0;
@@ -669,7 +789,7 @@ function playSong(id) {
   playCounted = false;
   if (deck) deckGo(deck.list.findIndex((s) => s.id === id)); // la bandeja sigue a la canción que suena
   // El <audio> pide fragmentos con la cabecera Range automáticamente.
-  audio.src = streamUrl(id);
+  audio.src = streamUrl(song);
   startPlayback();
 
   $("np-title").textContent = song.title;
@@ -685,13 +805,15 @@ function playSong(id) {
 }
 
 function step(delta) {
-  if (songs.length === 0) return;
-  if (shuffleOn && delta > 0 && songs.length > 1) {
-    const others = songs.filter((s) => s.id !== currentId);
+  // La cola es la sección de la canción que suena: escuchar privadas no mezcla las públicas.
+  const list = privateSongs.some((s) => s.id === currentId) ? privateSongs : songs;
+  if (list.length === 0) return;
+  if (shuffleOn && delta > 0 && list.length > 1) {
+    const others = list.filter((s) => s.id !== currentId);
     return playSong(others[Math.floor(Math.random() * others.length)].id);
   }
-  const i = songs.findIndex((s) => s.id === currentId);
-  playSong(songs[(i + delta + songs.length) % songs.length].id);
+  const i = list.findIndex((s) => s.id === currentId);
+  playSong(list[(i + delta + list.length) % list.length].id);
 }
 
 playBtn.addEventListener("click", () => {
@@ -805,9 +927,9 @@ let playCounted = false;
 
 async function countPlay(id) {
   try {
-    const res = await fetch(`${API_URL}/songs/${id}/play`, { method: "POST" });
+    const res = await fetch(`${API_URL}/songs/${id}/play`, { method: "POST", headers: authHeaders() });
     if (!res.ok) return;
-    const song = songs.find((s) => s.id === id);
+    const song = findSong(id);
     if (song) song.plays = (await res.json()).plays;
     refreshPlays();
   } catch { /* el contador es secundario: si falla, no molesta */ }
@@ -973,7 +1095,7 @@ const liked = new Set(
   })(),
 );
 
-const currentSong = () => songs.find((s) => s.id === currentId);
+const currentSong = () => findSong(currentId);
 
 function syncNowPlaying() {
   if (npf.hidden) return;
@@ -1034,7 +1156,7 @@ async function toggleLike() {
   song.likes = Math.max(0, (song.likes ?? 0) + (was ? -1 : 1)); // optimista: se corrige con la respuesta
   syncNowPlaying();
   try {
-    const res = await fetch(`${API_URL}/songs/${song.id}/like`, { method: was ? "DELETE" : "POST" });
+    const res = await fetch(`${API_URL}/songs/${song.id}/like`, { method: was ? "DELETE" : "POST", headers: authHeaders() });
     if (!res.ok) throw new Error();
     song.likes = (await res.json()).likes;
   } catch {
@@ -1212,8 +1334,9 @@ snakeCanvas.addEventListener("keydown", (e) => {
 
 /* ---------- Subida ---------- */
 
-function openUpload(e) {
+function openUpload(e, isPrivate = false) {
   e?.preventDefault();
+  form.elements.is_private.checked = isPrivate === true;
   uploadStatus.textContent = "";
   uploadStatus.className = "";
   dialog.showModal();

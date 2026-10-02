@@ -86,6 +86,7 @@ button { cursor: pointer; }
   padding: 10px;
   border-radius: 8px;
 }
+.nav-item { display: flex; align-items: center; gap: 8px; }
 .nav-item:hover { color: var(--text); }
 .nav-item.active { color: var(--text); background: var(--panel); }
 
@@ -706,6 +707,22 @@ body.npf-open { overflow: hidden; }
 .m-del { font-size: 0.95rem; opacity: 0.6; }
 .m-btn:active { background: var(--panel-hover); color: var(--text); }
 
+/* ---------- Sección privada ---------- */
+.priv-lock { max-width: 360px; margin: 6vh auto 0; display: grid; gap: 14px; justify-items: center; text-align: center; }
+.priv-lock h1 { margin: 0; font-size: 1.6rem; }
+.priv-icon { width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; background: rgb(255 255 255 / 0.08); }
+.priv-icon .ic { width: 28px; height: 28px; }
+.priv-form { display: grid; gap: 10px; width: 100%; }
+.priv-form input { padding: 13px 18px; border-radius: 999px; border: 1px solid #3a3a3d; background: var(--panel); outline: none; text-align: center; }
+.priv-form input:focus { border-color: #666; }
+.priv-form .big-play { justify-content: center; }
+.priv-msg { min-height: 1.2em; margin: 0; color: var(--muted); }
+.priv-msg.error { color: #ff6b7d; }
+.priv-list .page-title { margin-bottom: 6px; }
+.priv-list .m-stats { margin-bottom: 14px; }
+dialog label.check { display: flex; align-items: center; gap: 10px; color: var(--text); }
+dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 800px) {
   :root { --player-h: 68px; --tab-h: 58px; }
@@ -749,5 +766,5 @@ body.npf-open { overflow: hidden; }
   }
   .tab-ico { font-size: 1.35rem; line-height: 1; }
   .tab.active { color: var(--text); }
-  .tab.active .tab-ico { color: var(--accent); }
+  .tab.active .ic { color: var(--accent); }
 }
