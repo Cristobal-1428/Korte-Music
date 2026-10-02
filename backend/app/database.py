@@ -37,10 +37,15 @@ def init_db() -> None:
     SQLModel.metadata.create_all(engine)
     # create_all no agrega columnas a tablas que ya existen: la base de producción se actualiza aquí.
     existing = {c["name"] for c in inspect(engine).get_columns("song")}
-    for column in ("plays", "likes"):
+    new_columns = {
+        "plays": "INTEGER NOT NULL DEFAULT 0",
+        "likes": "INTEGER NOT NULL DEFAULT 0",
+        "is_private": "BOOLEAN NOT NULL DEFAULT FALSE",
+    }
+    for column, definition in new_columns.items():
         if column not in existing:
             with engine.begin() as conn:
-                conn.execute(text(f"ALTER TABLE song ADD COLUMN {column} INTEGER NOT NULL DEFAULT 0"))
+                conn.execute(text(f"ALTER TABLE song ADD COLUMN {column} {definition}"))
 
 
 def get_session():
