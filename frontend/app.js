@@ -89,22 +89,29 @@ async function loadSongs() {
   route();
 }
 
-// Borra la canción (fila y audio). Si el servidor pide clave de administrador, la pregunta una vez y la recuerda.
+// fetch para las acciones de administrador (subir y borrar). Si el servidor pide la clave, la pregunta una vez
+// y la recuerda en este navegador; si resulta incorrecta, la olvida para volver a preguntar la próxima vez.
+async function adminFetch(url, options = {}) {
+  const send = () => {
+    const key = pref.get("admin-key", "");
+    return fetch(url, { ...options, headers: { ...options.headers, ...(key ? { "X-Admin-Key": key } : {}) } });
+  };
+  let res = await send();
+  if (res.status === 401) {
+    const key = prompt("Clave de administrador:");
+    if (!key) return res;
+    pref.set("admin-key", key);
+    res = await send();
+    if (res.status === 401) pref.set("admin-key", "");
+  }
+  return res;
+}
+
+// Borra la canción (fila y audio).
 async function deleteSong(song) {
   if (!confirm(`¿Eliminar "${song.title}" de ${song.artist}? Esta acción no se puede deshacer.`)) return;
-  const send = () => {
-    const key = localStorage.getItem("admin-key");
-    return fetch(`${API_URL}/songs/${song.id}`, { method: "DELETE", headers: key ? { "X-Admin-Key": key } : {} });
-  };
   try {
-    let res = await send();
-    if (res.status === 401) {
-      const key = prompt("Clave de administrador:");
-      if (!key) return;
-      localStorage.setItem("admin-key", key);
-      res = await send();
-      if (res.status === 401) localStorage.removeItem("admin-key");
-    }
+    const res = await adminFetch(`${API_URL}/songs/${song.id}`, { method: "DELETE" });
     if (!res.ok && res.status !== 404) {
       const detail = await res.json().catch(() => ({}));
       throw new Error(detail.detail || "No se pudo eliminar la canción");
@@ -1222,7 +1229,7 @@ form.addEventListener("submit", async (event) => {
   uploadStatus.className = "";
   uploadStatus.textContent = "Subiendo...";
   try {
-    const res = await fetch(`${API_URL}/songs`, {
+    const res = await adminFetch(`${API_URL}/songs`, {
       method: "POST",
       body: new FormData(form), // multipart/form-data; el navegador fija el boundary
     });
