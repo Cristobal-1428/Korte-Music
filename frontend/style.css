@@ -646,6 +646,7 @@ body.npf-open { overflow: hidden; }
 .npf-foot { display: flex; justify-content: center; gap: clamp(20px, 8vw, 40px); }
 .npf-link { display: flex; align-items: center; gap: 7px; border: 0; background: none; color: rgb(255 255 255 / 0.55); font-size: 0.82rem; padding: 6px 4px; }
 .npf-link .ic { width: 18px; height: 18px; }
+.no-viz #npf-viz, .no-viz #viz-open { display: none; }
 .npf-link:active { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .nowplaying { animation: none; } }
 

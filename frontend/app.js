@@ -835,6 +835,9 @@ $("volume").addEventListener("input", (e) => (audio.volume = Number(e.target.val
 
 const viz = $("viz");
 
+// Sin visualizador (iPhone/iPad): se esconden sus botones para que la música siga sonando en segundo plano.
+if (!Visualizer.supported) document.documentElement.classList.add("no-viz");
+
 // Guarda la elección entre visitas; si el navegador bloquea localStorage, se ignora.
 const pref = {
   get(key, fallback) {

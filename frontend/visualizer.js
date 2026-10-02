@@ -15,6 +15,10 @@ const Visualizer = (() => {
     { id: "arcoiris", label: "Arcoíris", hues: null },
   ];
 
+  // En iPhone y iPad, conectar el <audio> a Web Audio hace que el sonido se corte al salir de la página
+  // (iOS suspende ese audio en segundo plano). Allí no se conecta: la música sigue sonando, sin visualizador.
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
   let audio, actx, analyser, timeData, freqData;
   let canvas, ctx, raf = 0, last = 0, observer;
   let modeId = "tunnel";
@@ -45,6 +49,7 @@ const Visualizer = (() => {
   // Debe llamarse desde un gesto del usuario (clic) la primera vez.
   function attach(el) {
     audio = el;
+    if (IS_IOS) return;
     if (actx) {
       if (actx.state === "suspended") actx.resume();
       return;
@@ -499,6 +504,7 @@ const Visualizer = (() => {
 
   return {
     attach, start, stop, setMode, setPalette, level,
+    supported: !IS_IOS,
     modes: MODES.map(({ id, label }) => ({ id, label })),
     palettes: PALETTES.map(({ id, label, hues }) => ({ id, label, hues })),
     set onFrame(fn) { onFrame = fn; },
