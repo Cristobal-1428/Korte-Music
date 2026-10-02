@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Korte Music</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="brand-mark">♪</span> Korte Music</div>
+
+      <nav class="nav">
+        <a href="#/" class="nav-item active" id="nav-home">Inicio</a>
+        <button type="button" class="nav-item" id="nav-upload">Subir canción</button>
+      </nav>
+
+      <div class="library">
+        <div class="library-head">
+          <span>Tu biblioteca</span>
+          <button type="button" class="icon-btn" id="open-upload" aria-label="Subir canción" title="Subir canción">+</button>
+        </div>
+        <ul id="library-list"></ul>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <button type="button" class="icon-btn" id="back" aria-label="Atrás" title="Atrás">‹</button>
+        <input type="search" id="search" placeholder="¿Qué quieres reproducir?" autocomplete="off" />
+      </header>
+
+      <p id="status" role="status"></p>
+      <div id="view"></div>
+    </main>
+
+    <section id="viz" hidden>
+      <canvas id="viz-canvas"></canvas>
+      <div class="viz-controls">
+        <div class="viz-modes" id="viz-modes" role="tablist" aria-label="Modelo de visualización"></div>
+        <div class="viz-palettes" id="viz-palettes" aria-label="Paleta de colores"></div>
+      </div>
+      <div class="viz-info">
+        <div class="viz-title" id="viz-title">Nada en reproducción</div>
+        <div class="viz-artist" id="viz-artist"></div>
+      </div>
+      <div class="viz-btns">
+        <button type="button" class="icon-btn" id="viz-full" aria-label="Pantalla completa" title="Pantalla completa">⛶</button>
+        <button type="button" class="icon-btn" id="viz-close" aria-label="Cerrar visualizador" title="Cerrar (Esc)">✕</button>
+      </div>
+    </section>
+
+    <footer class="player">
+      <div class="np">
+        <div class="np-cover" id="np-cover"></div>
+        <div class="np-text">
+          <div class="np-title" id="np-title">Nada en reproducción</div>
+          <div class="np-artist" id="np-artist">&nbsp;</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="buttons">
+          <button type="button" class="ctrl" id="prev" aria-label="Anterior">⏮</button>
+          <button type="button" class="ctrl play" id="play" aria-label="Reproducir / pausa">▶</button>
+          <button type="button" class="ctrl" id="next" aria-label="Siguiente">⏭</button>
+        </div>
+        <div class="seek">
+          <span id="time-cur">0:00</span>
+          <input type="range" id="seek" min="0" max="100" step="0.1" value="0" aria-label="Progreso" />
+          <span id="time-dur">0:00</span>
+        </div>
+      </div>
+
+      <div class="volume">
+        <button type="button" class="ctrl" id="viz-open" aria-label="Visualizador" title="Visualizador">🌀</button>
+        <span aria-hidden="true">🔊</span>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volumen" />
+      </div>
+
+      <!-- Reproductor nativo de HTML; se controla con los botones de arriba. -->
+      <!-- crossorigin: necesario para que el analizador pueda leer el audio de otro origen. -->
+      <audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
+    </footer>
+  </div>
+
+  <dialog id="upload-dialog">
+    <form id="upload-form">
+      <h2>Subir canción</h2>
+      <label>Título <input type="text" name="title" required maxlength="200" /></label>
+      <label>Artista <input type="text" name="artist" required maxlength="200" /></label>
+      <label>Archivo de audio <input type="file" name="file" accept=".mp3,.wav,.ogg,.m4a,.flac,audio/*" required /></label>
+      <p id="upload-status" role="status"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn-ghost" id="cancel-upload">Cancelar</button>
+        <button type="submit" class="btn-primary" id="submit-upload">Subir</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="config.js"></script>
+  <script src="visualizer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
