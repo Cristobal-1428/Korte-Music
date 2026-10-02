@@ -1373,7 +1373,9 @@ form.addEventListener("submit", async (event) => {
 
 /* ---------- Inicio ---------- */
 
-loadSongs().catch((e) => {
-  statusEl.className = "error";
-  statusEl.textContent = `${e.message}. ¿Está corriendo la API en ${API_URL}?`;
-});
+loadSongs()
+  .catch((e) => {
+    statusEl.className = "error";
+    statusEl.textContent = `${e.message}. ¿Está corriendo la API en ${API_URL}?`;
+  })
+  .finally(() => document.getElementById("splash")?.classList.add("hide"));
