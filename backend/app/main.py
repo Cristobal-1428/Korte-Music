@@ -7,6 +7,7 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from sqlalchemy import update
 from sqlmodel import Session, select
 
 from . import storage
@@ -114,6 +115,17 @@ async def delete_song(song_id: int, session: Session = Depends(get_session)):
         raise HTTPException(502, f"No se pudo borrar el audio: {exc}")
     session.delete(song)
     session.commit()
+
+
+@app.post("/songs/{song_id}/play")
+def count_play(song_id: int, session: Session = Depends(get_session)):
+    """Suma una reproducción (el frontend la avisa tras escuchar unos segundos)."""
+    # UPDATE atómico: dos oyentes a la vez no pisan el contador del otro.
+    result = session.exec(update(Song).where(Song.id == song_id).values(plays=Song.plays + 1))
+    if result.rowcount == 0:
+        raise HTTPException(404, "Canción no encontrada")
+    session.commit()
+    return {"plays": session.exec(select(Song.plays).where(Song.id == song_id)).one()}
 
 
 @app.get("/songs/{song_id}/stream")
