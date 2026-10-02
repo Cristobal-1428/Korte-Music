@@ -406,6 +406,7 @@ function refreshPlays() {
   document.querySelectorAll("[data-plays-total]").forEach((node) => {
     node.textContent = playsText(songs.reduce((sum, s) => sum + s.plays, 0));
   });
+  syncNowPlaying();
 }
 
 // Fila compacta: toca para reproducir; › abre el detalle y ✕ elimina.
@@ -604,6 +605,7 @@ function markActive() {
 
 function updatePlayState() {
   playBtn.textContent = audio.paused ? "▶" : "⏸";
+  syncNowPlaying();
   // La canción "en pantalla" es la del disco central (inicio) o la del detalle.
   const shownId = deck ? deck.list[deck.index].id : detailId;
   const playingHere = currentId === shownId && !audio.paused;
@@ -653,6 +655,10 @@ function playSong(id) {
 
 function step(delta) {
   if (songs.length === 0) return;
+  if (shuffleOn && delta > 0 && songs.length > 1) {
+    const others = songs.filter((s) => s.id !== currentId);
+    return playSong(others[Math.floor(Math.random() * others.length)].id);
+  }
   const i = songs.findIndex((s) => s.id === currentId);
   playSong(songs[(i + delta + songs.length) % songs.length].id);
 }
@@ -669,7 +675,14 @@ $("next").addEventListener("click", () => step(1));
 
 audio.addEventListener("play", updatePlayState);
 audio.addEventListener("pause", updatePlayState);
-audio.addEventListener("ended", () => step(1));
+audio.addEventListener("ended", () => {
+  if (!repeatOne) return step(1);
+  audio.currentTime = 0; // repetir la misma canción: vuelve a contar como una reproducción nueva
+  listened = 0;
+  lastTime = 0;
+  playCounted = false;
+  audio.play().catch(() => {});
+});
 audio.addEventListener("loadedmetadata", () => ($("time-dur").textContent = formatTime(audio.duration)));
 // Cuenta una reproducción cuando se han escuchado 10 s de verdad (o la mitad, si la canción es más corta).
 // Se suman solo avances normales: saltar la barra de progreso no cuenta como escuchar.
@@ -828,6 +841,259 @@ search.addEventListener("input", () => {
   renderLibrary();
   if (detailId !== null) location.hash = "#/"; // buscar lleva al inicio; hashchange renderiza
   else showHome();
+});
+
+/* ---------- Pantalla de reproducción (estilo YouTube Music) ---------- */
+
+const npf = $("nowplaying");
+const snakeCanvas = $("npf-snake");
+const snakeCtx = snakeCanvas.getContext("2d");
+
+let shuffleOn = pref.get("shuffle", "0") === "1";
+let repeatOne = pref.get("repeat", "0") === "1";
+// Sin cuentas, cada navegador recuerda qué canciones marcó con "me gusta".
+const liked = new Set(
+  (() => {
+    try { return JSON.parse(pref.get("liked", "[]")); } catch { return []; }
+  })(),
+);
+
+const currentSong = () => songs.find((s) => s.id === currentId);
+
+function syncNowPlaying() {
+  if (npf.hidden) return;
+  const song = currentSong();
+  if (!song) return hideNowPlaying(); // la canción se eliminó o aún no hay ninguna
+  npf.style.setProperty("--h", hue(song));
+  const cover = $("npf-cover");
+  cover.textContent = initial(song);
+  cover.style.cssText = coverStyle(song);
+  $("npf-title").textContent = song.title;
+  $("npf-artist").textContent = song.artist;
+  $("npf-plays").textContent = playsText(song.plays ?? 0);
+  const isLiked = liked.has(song.id);
+  $("npf-like").classList.toggle("on", isLiked);
+  $("npf-like").setAttribute("aria-pressed", String(isLiked));
+  $("npf-heart").textContent = isLiked ? "♥" : "♡";
+  $("npf-likes").textContent = song.likes ?? 0;
+  $("npf-play").textContent = audio.paused ? "▶" : "⏸";
+  $("npf-shuffle").classList.toggle("on", shuffleOn);
+  $("npf-shuffle").setAttribute("aria-pressed", String(shuffleOn));
+  $("npf-repeat").classList.toggle("on", repeatOne);
+  $("npf-repeat").setAttribute("aria-pressed", String(repeatOne));
+  $("npf-repeat").textContent = repeatOne ? "🔂" : "🔁";
+}
+
+function openNowPlaying() {
+  if (currentId === null || !npf.hidden) return;
+  npf.hidden = false;
+  document.body.classList.add("npf-open");
+  syncNowPlaying();
+  startSnake();
+  history.pushState({ npf: true }, ""); // el botón "atrás" del teléfono cierra la pantalla, no la app
+}
+
+function hideNowPlaying() {
+  npf.hidden = true;
+  document.body.classList.remove("npf-open");
+  stopSnake();
+}
+
+function closeNowPlaying() {
+  if (npf.hidden) return;
+  hideNowPlaying();
+  if (history.state?.npf) history.back();
+}
+window.addEventListener("popstate", () => {
+  if (!npf.hidden) hideNowPlaying();
+});
+
+async function toggleLike() {
+  const song = currentSong();
+  if (!song) return;
+  const was = liked.has(song.id);
+  const apply = (on) => {
+    on ? liked.add(song.id) : liked.delete(song.id);
+    pref.set("liked", JSON.stringify([...liked]));
+  };
+  apply(!was);
+  song.likes = Math.max(0, (song.likes ?? 0) + (was ? -1 : 1)); // optimista: se corrige con la respuesta
+  syncNowPlaying();
+  try {
+    const res = await fetch(`${API_URL}/songs/${song.id}/like`, { method: was ? "DELETE" : "POST" });
+    if (!res.ok) throw new Error();
+    song.likes = (await res.json()).likes;
+  } catch {
+    apply(was);
+    song.likes = Math.max(0, (song.likes ?? 0) + (was ? 1 : -1));
+  }
+  syncNowPlaying();
+}
+
+async function shareSong() {
+  const song = currentSong();
+  if (!song) return;
+  const url = `${location.origin}${location.pathname}#/song/${song.id}`;
+  const btn = $("npf-share");
+  try {
+    if (navigator.share) await navigator.share({ title: song.title, text: `${song.title} – ${song.artist}`, url });
+    else {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = "✓";
+      setTimeout(() => (btn.textContent = "⤴"), 1200);
+    }
+  } catch { /* el usuario canceló el diálogo de compartir */ }
+}
+
+document.querySelector(".np").addEventListener("click", openNowPlaying);
+$("npf-close").addEventListener("click", closeNowPlaying);
+$("npf-like").addEventListener("click", toggleLike);
+$("npf-share").addEventListener("click", shareSong);
+$("npf-viz").addEventListener("click", () => {
+  closeNowPlaying();
+  openViz();
+});
+$("npf-play").addEventListener("click", togglePlay);
+$("npf-prev").addEventListener("click", () => step(-1));
+$("npf-next").addEventListener("click", () => step(1));
+$("npf-shuffle").addEventListener("click", () => {
+  shuffleOn = !shuffleOn;
+  pref.set("shuffle", shuffleOn ? "1" : "0");
+  syncNowPlaying();
+});
+$("npf-repeat").addEventListener("click", () => {
+  repeatOne = !repeatOne;
+  pref.set("repeat", repeatOne ? "1" : "0");
+  syncNowPlaying();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !npf.hidden) closeNowPlaying();
+});
+
+/* ---------- La serpiente: barra de progreso ---------- */
+// La cabeza de la serpiente es la posición actual: va comiendo los puntos del camino y deja atrás un cuerpo
+// recto sobre la línea. Solo la punta se mueve, apenas, un poco más con los graves. Arrastrarla adelanta o atrasa la canción.
+
+const snake = { w: 0, h: 0, dpr: 1, raf: 0, last: 0, t: 0, head: -1, amp: 1.2, bass: 0, speed: 1, dragging: false, ratio: 0 };
+const SNAKE_PAD = 16;
+const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function snakeResize() {
+  const rect = snakeCanvas.getBoundingClientRect();
+  snake.dpr = window.devicePixelRatio || 1;
+  snake.w = rect.width;
+  snake.h = rect.height;
+  snakeCanvas.width = Math.round(rect.width * snake.dpr);
+  snakeCanvas.height = Math.round(rect.height * snake.dpr);
+}
+window.addEventListener("resize", () => !npf.hidden && snakeResize());
+
+function startSnake() {
+  cancelAnimationFrame(snake.raf);
+  snakeResize();
+  snake.head = -1; // la primera vez se coloca directamente sobre la posición actual
+  snake.last = performance.now();
+  snake.raf = requestAnimationFrame(snakeFrame);
+}
+
+function stopSnake() {
+  cancelAnimationFrame(snake.raf);
+  snake.dragging = false;
+}
+
+function setText(id, text) {
+  const node = $(id);
+  if (node.textContent !== text) node.textContent = text;
+}
+
+function snakeFrame(now) {
+  snake.raf = requestAnimationFrame(snakeFrame);
+  const dt = Math.min(0.05, (now - snake.last) / 1000);
+  snake.last = now;
+  const { w, h, dpr } = snake;
+  const ctx = snakeCtx;
+  const playing = !audio.paused;
+  const dur = audio.duration || 0;
+  // Todo se acerca a su valor con un suavizado exponencial: nada salta ni se corta de golpe.
+  const ease = (rate) => 1 - Math.exp(-rate * dt);
+
+  const ratio = snake.dragging ? snake.ratio : dur ? Math.min(1, audio.currentTime / dur) : 0;
+  const span = Math.max(1, w - SNAKE_PAD * 2);
+  const target = SNAKE_PAD + ratio * span;
+  snake.head = snake.head < 0 ? target : snake.head + (target - snake.head) * ease(snake.dragging ? 14 : 4);
+
+  const level = playing ? Visualizer.level() : 0;
+  snake.bass += (level - snake.bass) * ease(2.5);
+  snake.amp += ((playing ? 1.6 + snake.bass * 2.2 : 0.4) - snake.amp) * ease(1.2);
+  snake.speed += ((playing ? 1 : 0.2) - snake.speed) * ease(1.5);
+  if (!reducedMotion) snake.t += dt * snake.speed;
+
+  const shownTime = snake.dragging ? ratio * dur : audio.currentTime;
+  setText("npf-cur", formatTime(shownTime));
+  setText("npf-dur", formatTime(dur));
+  const pct = String(Math.round(ratio * 100));
+  if (snakeCanvas.getAttribute("aria-valuenow") !== pct) snakeCanvas.setAttribute("aria-valuenow", pct);
+
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const midY = h / 2;
+  const headX = snake.head;
+
+  // Camino: puntos por comer (cada sexto es más grande). Los que quedan atrás ya se comieron.
+  for (let x = SNAKE_PAD, k = 0; x <= w - SNAKE_PAD + 0.5; x += 16, k++) {
+    if (x <= headX + 8) continue;
+    const big = k % 6 === 5;
+    ctx.beginPath();
+    ctx.fillStyle = big ? "rgb(255 255 255 / 0.8)" : "rgb(255 255 255 / 0.22)";
+    ctx.arc(x, midY, big ? 2.6 : 1.6, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Cuerpo largo: cubre todo el camino recorrido y queda recto sobre la línea, fino atrás y más grueso y
+  // brillante cerca de la cabeza. Solo se mueve un poquito la punta (el término "live"); al quedar atrás
+  // se aquieta del todo y el cuerpo se queda quieto sobre la línea.
+  const step = 1.5;
+  const thick = 1 + snake.bass * 0.1 + (snake.dragging ? 0.25 : 0);
+  const n = Math.ceil((headX - SNAKE_PAD) / step);
+  for (let i = 0; i <= n; i++) {
+    const x = Math.min(headX, SNAKE_PAD + i * step);
+    const d = headX - x; // distancia hasta la cabeza
+    const live = Math.sin(snake.t * 2 - d * 0.08) * snake.amp * Math.exp(-(d * d) / 800);
+    const r = (1.1 + 3.9 * Math.pow(Math.max(0, 1 - d / 70), 1.5)) * thick;
+    ctx.beginPath();
+    ctx.fillStyle = `hsl(0 0% ${66 + 34 * Math.max(0, 1 - d / 100)}%)`;
+    ctx.arc(x, midY + live, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+function snakeRatio(e) {
+  const rect = snakeCanvas.getBoundingClientRect();
+  return Math.min(1, Math.max(0, (e.clientX - rect.left - SNAKE_PAD) / Math.max(1, rect.width - SNAKE_PAD * 2)));
+}
+
+snakeCanvas.addEventListener("pointerdown", (e) => {
+  if (!audio.duration) return;
+  snake.dragging = true;
+  snake.ratio = snakeRatio(e);
+  snakeCanvas.setPointerCapture(e.pointerId);
+});
+snakeCanvas.addEventListener("pointermove", (e) => {
+  if (snake.dragging) snake.ratio = snakeRatio(e);
+});
+const endDrag = () => {
+  if (!snake.dragging) return;
+  snake.dragging = false;
+  if (audio.duration) audio.currentTime = snake.ratio * audio.duration;
+};
+snakeCanvas.addEventListener("pointerup", endDrag);
+snakeCanvas.addEventListener("pointercancel", endDrag);
+snakeCanvas.addEventListener("keydown", (e) => {
+  if (!audio.duration) return;
+  const jump = { ArrowRight: 5, ArrowLeft: -5 }[e.key];
+  if (jump === undefined) return;
+  e.preventDefault();
+  audio.currentTime = Math.min(audio.duration, Math.max(0, audio.currentTime + jump));
 });
 
 /* ---------- Subida ---------- */

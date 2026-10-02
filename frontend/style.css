@@ -571,6 +571,90 @@ dialog input[type="text"], dialog input[type="file"] {
 
 .tabbar { display: none; }
 
+/* ---------- Pantalla de reproducción ---------- */
+.np { cursor: pointer; }
+body.npf-open { overflow: hidden; }
+.nowplaying {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 14px;
+  width: min(100%, 480px);
+  margin: 0 auto;
+  padding: calc(env(safe-area-inset-top) + 10px) 22px calc(env(safe-area-inset-bottom) + 18px);
+  background: linear-gradient(180deg, hsl(var(--h, 340) 55% 24%) 0%, #0b0b0d 64%);
+  overflow-y: auto;
+  animation: npf-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.nowplaying[hidden] { display: none; }
+@keyframes npf-in { from { transform: translateY(40px); opacity: 0; } }
+
+.npf-top { display: flex; align-items: center; justify-content: space-between; }
+.npf-top .icon-btn { width: 40px; height: 40px; background: rgb(255 255 255 / 0.1); font-size: 1.4rem; }
+.npf-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(255 255 255 / 0.7); }
+
+.npf-cover {
+  align-self: center;
+  width: min(100%, 52vh, 380px);
+  aspect-ratio: 1;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 6.5rem;
+  font-weight: 900;
+  text-shadow: 0 4px 18px rgb(0 0 0 / 0.4);
+  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55), 0 0 70px hsl(var(--h, 340) 85% 50% / 0.3);
+  margin: 6px 0;
+}
+
+.npf-info h2 { margin: 0; font-size: 1.6rem; line-height: 1.15; overflow-wrap: anywhere; }
+.npf-info p { margin: 4px 0 0; color: rgb(255 255 255 / 0.65); }
+
+.npf-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.npf-chips::-webkit-scrollbar { display: none; }
+.npf-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgb(255 255 255 / 0.1);
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.npf-static { background: rgb(255 255 255 / 0.06); color: rgb(255 255 255 / 0.7); }
+.npf-chip.on { background: hsl(var(--h, 340) 80% 55% / 0.28); }
+.npf-chip.on #npf-heart { color: hsl(var(--h, 340) 100% 72%); animation: npf-pop 0.35s; }
+@keyframes npf-pop { 40% { transform: scale(1.5); } }
+
+.npf-seek { margin-top: auto; }
+#npf-snake { display: block; width: 100%; height: 64px; touch-action: none; cursor: pointer; outline: none; }
+#npf-snake:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); border-radius: 8px; }
+.npf-times { display: flex; justify-content: space-between; padding: 0 16px; color: rgb(255 255 255 / 0.6); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+
+.npf-controls { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 6px; }
+.npf-btn { background: none; border: 0; font-size: 1.5rem; padding: 10px; opacity: 0.85; border-radius: 50%; }
+.npf-btn:active { background: rgb(255 255 255 / 0.1); }
+#npf-shuffle, #npf-repeat { font-size: 1.25rem; opacity: 0.45; }
+#npf-shuffle.on, #npf-repeat.on { opacity: 1; filter: drop-shadow(0 0 6px hsl(var(--h, 340) 100% 65%)); }
+.npf-play {
+  width: 72px;
+  height: 72px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #000;
+  font-size: 1.8rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+.npf-play:active { transform: scale(0.95); }
+@media (prefers-reduced-motion: reduce) { .nowplaying { animation: none; } }
+
 /* ---------- Inicio en el celular ---------- */
 .m-hero { padding: 4px 0 8px; }
 .m-logo { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 800; margin: 0 0 18px; }

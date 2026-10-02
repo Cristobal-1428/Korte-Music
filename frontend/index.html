@@ -90,6 +90,43 @@
     </footer>
   </div>
 
+  <!-- Pantalla de reproducción: se abre al tocar el mini reproductor. -->
+  <section id="nowplaying" class="nowplaying" hidden aria-label="Reproduciendo">
+    <header class="npf-top">
+      <button type="button" class="icon-btn" id="npf-close" aria-label="Cerrar" title="Cerrar">⌄</button>
+      <span class="npf-kicker">Reproduciendo</span>
+      <button type="button" class="icon-btn" id="npf-share" aria-label="Compartir" title="Compartir">⤴</button>
+    </header>
+
+    <div class="npf-cover" id="npf-cover"></div>
+
+    <div class="npf-info">
+      <h2 id="npf-title"></h2>
+      <p id="npf-artist"></p>
+    </div>
+
+    <div class="npf-chips">
+      <button type="button" class="npf-chip" id="npf-like" aria-pressed="false">
+        <span id="npf-heart" aria-hidden="true">♡</span> <span id="npf-likes">0</span>
+      </button>
+      <button type="button" class="npf-chip" id="npf-viz">🌀 Visualizador</button>
+      <span class="npf-chip npf-static" id="npf-plays"></span>
+    </div>
+
+    <div class="npf-seek">
+      <canvas id="npf-snake" tabindex="0" role="slider" aria-label="Progreso de la canción" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"></canvas>
+      <div class="npf-times"><span id="npf-cur">0:00</span><span id="npf-dur">0:00</span></div>
+    </div>
+
+    <div class="npf-controls">
+      <button type="button" class="npf-btn" id="npf-shuffle" aria-label="Aleatorio" aria-pressed="false">🔀</button>
+      <button type="button" class="npf-btn" id="npf-prev" aria-label="Anterior">⏮</button>
+      <button type="button" class="npf-play" id="npf-play" aria-label="Reproducir / pausa">▶</button>
+      <button type="button" class="npf-btn" id="npf-next" aria-label="Siguiente">⏭</button>
+      <button type="button" class="npf-btn" id="npf-repeat" aria-label="Repetir canción" aria-pressed="false">🔁</button>
+    </div>
+  </section>
+
   <!-- Navegación inferior: solo se ve en el celular (el menú lateral no cabe). -->
   <nav class="tabbar" aria-label="Navegación">
     <a href="#/" class="tab active" id="tab-home"><span class="tab-ico">⌂</span>Inicio</a>

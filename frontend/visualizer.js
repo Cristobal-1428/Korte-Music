@@ -66,6 +66,13 @@ const Visualizer = (() => {
     return s / (b - a) / 255;
   }
 
+  // Lectura rápida de los graves (0..1) para elementos de la página que no dibujan en el canvas del visualizador.
+  function level() {
+    if (!analyser || !audio || audio.paused) return 0;
+    analyser.getByteFrequencyData(freqData);
+    return avgBins(0, 6);
+  }
+
   function analyze() {
     const now = g.now;
     g.beatNow = false;
@@ -491,7 +498,7 @@ const Visualizer = (() => {
   }
 
   return {
-    attach, start, stop, setMode, setPalette,
+    attach, start, stop, setMode, setPalette, level,
     modes: MODES.map(({ id, label }) => ({ id, label })),
     palettes: PALETTES.map(({ id, label, hues }) => ({ id, label, hues })),
     set onFrame(fn) { onFrame = fn; },
