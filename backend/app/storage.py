@@ -45,5 +45,16 @@ async def save(name: str, data: bytes, content_type: str) -> None:
         raise RuntimeError(f"Supabase Storage rechazó la subida ({res.status_code}): {res.text}")
 
 
+async def delete(name: str) -> None:
+    if not USE_SUPABASE:
+        (UPLOAD_DIR / name).unlink(missing_ok=True)
+        return
+    async with httpx.AsyncClient(timeout=30) as client:
+        res = await client.delete(f"{SUPABASE_URL}/storage/v1/object/{BUCKET}/{name}", headers=_AUTH)
+    # 404: el archivo ya no estaba, el resultado buscado es el mismo.
+    if res.status_code >= 400 and res.status_code != 404:
+        raise RuntimeError(f"Supabase Storage rechazó el borrado ({res.status_code}): {res.text}")
+
+
 def public_url(name: str) -> str:
     return f"{SUPABASE_URL}/storage/v1/object/public/{BUCKET}/{name}"

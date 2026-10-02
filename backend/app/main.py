@@ -1,4 +1,5 @@
 import os
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -22,6 +23,7 @@ ALLOWED_TYPES = {
 }
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
 UPLOAD_CHUNK = 1024 * 1024
+ADMIN_KEY = os.getenv("ADMIN_KEY", "")
 
 
 @asynccontextmanager
@@ -92,6 +94,26 @@ async def upload_song(
 @app.get("/songs", response_model=list[SongRead])
 def list_songs(session: Session = Depends(get_session)):
     return session.exec(select(Song).order_by(Song.created_at.desc())).all()
+
+
+def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
+    """Si ADMIN_KEY está definida, borrar exige la cabecera X-Admin-Key; si no, no hay restricción."""
+    if ADMIN_KEY and not secrets.compare_digest(x_admin_key or "", ADMIN_KEY):
+        raise HTTPException(401, "Clave de administrador incorrecta")
+
+
+@app.delete("/songs/{song_id}", status_code=204, dependencies=[Depends(require_admin)])
+async def delete_song(song_id: int, session: Session = Depends(get_session)):
+    song = session.get(Song, song_id)
+    if song is None:
+        raise HTTPException(404, "Canción no encontrada")
+    # Primero el audio: si el almacenamiento falla, la fila queda y se puede reintentar sin dejar huérfanos.
+    try:
+        await storage.delete(song.file_path)
+    except Exception as exc:
+        raise HTTPException(502, f"No se pudo borrar el audio: {exc}")
+    session.delete(song)
+    session.commit()
 
 
 @app.get("/songs/{song_id}/stream")
