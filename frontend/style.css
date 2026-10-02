@@ -802,3 +802,7 @@ dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent
 .splash-note { transform-box: view-box; transform-origin: 256px 256px; animation: splash-spin 1.1s linear infinite; }
 @keyframes splash-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .splash-note { animation-duration: 3s; } }
+
+/* Sin canción cargada no se muestra la barra del reproductor. */
+.no-track .player { display: none; }
+.no-track .app { grid-template-rows: 1fr; }

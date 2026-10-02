@@ -134,6 +134,7 @@ function resetPlayer() {
   audio.removeAttribute("src");
   audio.load();
   currentId = null;
+  document.body.classList.add("no-track");
   setMediaMetadata(null);
   $("np-title").textContent = "Nada en reproducción";
   $("np-artist").innerHTML = "&nbsp;";
@@ -784,6 +785,7 @@ function playSong(id) {
   const song = findSong(id);
   if (!song) return;
   currentId = id;
+  document.body.classList.remove("no-track");
   listened = 0;
   lastTime = 0;
   playCounted = false;
