@@ -606,6 +606,18 @@ function showMobileHome(list) {
   main.style.setProperty("--tint", "hsl(350 55% 18%)");
   syncViz(); // sin escenario no hay visualizador de fondo
 
+  // Buscando: solo los resultados, sin saludo ni carrusel.
+  if (search.value.trim()) {
+    const found = el("div", "m-rows");
+    found.append(...list.map(makeRow));
+    view.replaceChildren(el("h2", "m-section", list.length === 1 ? "1 resultado" : `${list.length} resultados`), found);
+    main.scrollTop = 0;
+    refreshPlays();
+    markActive();
+    updatePlayState();
+    return;
+  }
+
   const hero = el("section", "m-hero");
   // Icono + texto en vez de logo.png: ese PNG trae fondo oscuro propio y se nota sobre el degradado.
   const mark = el("img", "m-mark");
