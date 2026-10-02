@@ -571,7 +571,14 @@ dialog input[type="text"], dialog input[type="file"] {
 
 .tabbar { display: none; }
 
-/* ---------- Pantalla de reproducción ---------- */
+/* ---------- Íconos ---------- */
+.ic { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ic.fill { fill: currentColor; stroke: none; }
+.ic-sm { width: 16px; height: 16px; }
+.ctrl .ic { width: 22px; height: 22px; }
+.ctrl.play .ic { width: 18px; height: 18px; }
+
+/* ---------- Pantalla de reproducción (minimalista; se adapta al alto del teléfono) ---------- */
 .np { cursor: pointer; }
 body.npf-open { overflow: hidden; }
 .nowplaying {
@@ -580,79 +587,67 @@ body.npf-open { overflow: hidden; }
   z-index: 40;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 14px;
+  gap: clamp(10px, 2.2dvh, 20px);
   width: min(100%, 480px);
   margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 10px) 22px calc(env(safe-area-inset-bottom) + 18px);
-  background: linear-gradient(180deg, hsl(var(--h, 340) 55% 24%) 0%, #0b0b0d 64%);
+  padding: calc(env(safe-area-inset-top) + 6px) clamp(18px, 6vw, 30px) calc(env(safe-area-inset-bottom) + 14px);
+  background: linear-gradient(180deg, hsl(var(--h, 340) 36% 16%) 0%, #0b0b0d 52%);
   overflow-y: auto;
-  animation: npf-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: npf-in 0.25s ease-out;
 }
 .nowplaying[hidden] { display: none; }
-@keyframes npf-in { from { transform: translateY(40px); opacity: 0; } }
+@keyframes npf-in { from { transform: translateY(24px); opacity: 0; } }
 
-.npf-top { display: flex; align-items: center; justify-content: space-between; }
-.npf-top .icon-btn { width: 40px; height: 40px; background: rgb(255 255 255 / 0.1); font-size: 1.4rem; }
-.npf-kicker { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(255 255 255 / 0.7); }
+.npf-top { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
+.npf-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: rgb(255 255 255 / 0.85); border-radius: 50%; }
+.npf-icon:active { background: rgb(255 255 255 / 0.1); }
+.npf-kicker { text-align: center; font-size: 0.78rem; font-weight: 600; color: rgb(255 255 255 / 0.55); letter-spacing: 0.04em; }
 
+/* La portada ocupa el alto que sobra y siempre es cuadrada: nunca empuja ni recorta lo demás. */
+.npf-art { flex: 1 1 auto; min-height: 88px; display: grid; place-items: center; container-type: size; }
 .npf-cover {
-  align-self: center;
-  width: min(100%, 52vh, 380px);
+  width: min(100%, 44dvh);
+  width: min(100cqw, 100cqh);
   aspect-ratio: 1;
-  border-radius: 14px;
+  border-radius: 12px;
   display: grid;
   place-items: center;
-  font-size: 6.5rem;
-  font-weight: 900;
-  text-shadow: 0 4px 18px rgb(0 0 0 / 0.4);
-  box-shadow: 0 24px 60px rgb(0 0 0 / 0.55), 0 0 70px hsl(var(--h, 340) 85% 50% / 0.3);
-  margin: 6px 0;
+  font-size: clamp(2.6rem, 24cqmin, 6rem);
+  font-weight: 800;
+  text-shadow: 0 2px 12px rgb(0 0 0 / 0.3);
+  box-shadow: 0 16px 40px rgb(0 0 0 / 0.4);
 }
 
-.npf-info h2 { margin: 0; font-size: 1.6rem; line-height: 1.15; overflow-wrap: anywhere; }
-.npf-info p { margin: 4px 0 0; color: rgb(255 255 255 / 0.65); }
+.npf-meta { display: flex; align-items: center; gap: 12px; }
+.npf-info { flex: 1; min-width: 0; }
+.npf-info h2 { margin: 0; font-size: clamp(1.2rem, 5.4vw, 1.65rem); line-height: 1.15; overflow-wrap: anywhere; }
+.npf-info p { margin: 3px 0 0; color: rgb(255 255 255 / 0.65); font-size: clamp(0.88rem, 3.8vw, 1rem); }
+#npf-plays { display: block; margin-top: 2px; color: rgb(255 255 255 / 0.4); font-size: 0.78rem; }
+.npf-like { flex: none; display: flex; align-items: center; gap: 6px; border: 0; background: none; color: rgb(255 255 255 / 0.75); padding: 8px 4px 8px 8px; font-variant-numeric: tabular-nums; }
+.npf-like .ic { width: 26px; height: 26px; }
+.npf-like.on { color: hsl(var(--h, 340) 100% 72%); }
+.npf-like.on .ic { fill: currentColor; animation: npf-pop 0.35s; }
+@keyframes npf-pop { 40% { transform: scale(1.35); } }
 
-.npf-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-.npf-chips::-webkit-scrollbar { display: none; }
-.npf-chip {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: 0;
-  border-radius: 999px;
-  padding: 10px 16px;
-  background: rgb(255 255 255 / 0.1);
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-}
-.npf-static { background: rgb(255 255 255 / 0.06); color: rgb(255 255 255 / 0.7); }
-.npf-chip.on { background: hsl(var(--h, 340) 80% 55% / 0.28); }
-.npf-chip.on #npf-heart { color: hsl(var(--h, 340) 100% 72%); animation: npf-pop 0.35s; }
-@keyframes npf-pop { 40% { transform: scale(1.5); } }
-
-.npf-seek { margin-top: auto; }
-#npf-snake { display: block; width: 100%; height: 64px; touch-action: none; cursor: pointer; outline: none; }
+#npf-snake { display: block; width: 100%; height: clamp(44px, 8dvh, 60px); touch-action: none; cursor: pointer; outline: none; }
 #npf-snake:focus-visible { outline: 2px solid rgb(255 255 255 / 0.5); border-radius: 8px; }
-.npf-times { display: flex; justify-content: space-between; padding: 0 16px; color: rgb(255 255 255 / 0.6); font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.npf-times { display: flex; justify-content: space-between; padding: 0 16px; color: rgb(255 255 255 / 0.5); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 
-.npf-controls { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 6px; }
-.npf-btn { background: none; border: 0; font-size: 1.5rem; padding: 10px; opacity: 0.85; border-radius: 50%; }
+.npf-controls { display: flex; align-items: center; justify-content: space-between; }
+.npf-btn { position: relative; width: clamp(40px, 12vw, 50px); height: clamp(40px, 12vw, 50px); display: grid; place-items: center; border: 0; background: none; color: rgb(255 255 255 / 0.92); border-radius: 50%; }
 .npf-btn:active { background: rgb(255 255 255 / 0.1); }
-#npf-shuffle, #npf-repeat { font-size: 1.25rem; opacity: 0.45; }
-#npf-shuffle.on, #npf-repeat.on { opacity: 1; filter: drop-shadow(0 0 6px hsl(var(--h, 340) 100% 65%)); }
-.npf-play {
-  width: 72px;
-  height: 72px;
-  border: 0;
-  border-radius: 50%;
-  background: #fff;
-  color: #000;
-  font-size: 1.8rem;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
-}
+.npf-btn .ic.fill { width: 26px; height: 26px; }
+#npf-shuffle, #npf-repeat { color: rgb(255 255 255 / 0.4); }
+#npf-shuffle.on, #npf-repeat.on { color: hsl(var(--h, 340) 100% 72%); }
+#npf-shuffle.on::after, #npf-repeat.on::after { content: ""; position: absolute; bottom: 3px; width: 4px; height: 4px; border-radius: 50%; background: currentColor; }
+.npf-play { width: clamp(58px, 18vw, 72px); height: clamp(58px, 18vw, 72px); display: grid; place-items: center; border: 0; border-radius: 50%; background: #fff; color: #000; }
+.npf-play .ic { width: 28px; height: 28px; }
 .npf-play:active { transform: scale(0.95); }
+
+.npf-foot { display: flex; justify-content: center; gap: clamp(20px, 8vw, 40px); }
+.npf-link { display: flex; align-items: center; gap: 7px; border: 0; background: none; color: rgb(255 255 255 / 0.55); font-size: 0.82rem; padding: 6px 4px; }
+.npf-link .ic { width: 18px; height: 18px; }
+.npf-link:active { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .nowplaying { animation: none; } }
 
 /* ---------- Inicio en el celular ---------- */

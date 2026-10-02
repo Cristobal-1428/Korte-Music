@@ -15,6 +15,11 @@ const form = $("upload-form");
 const uploadStatus = $("upload-status");
 const submitBtn = $("submit-upload");
 
+// Cambia el dibujo de un botón que usa un ícono del sprite (#i-nombre) del HTML.
+function setIcon(btn, name) {
+  btn.querySelector("use").setAttribute("href", `#i-${name}`);
+}
+
 const isMobile = window.matchMedia("(max-width: 800px)");
 
 let songs = [];
@@ -322,7 +327,8 @@ function showHome() {
   const artist = el("div", "stage-artist");
   const bigPlay = el("button", "big-play");
   bigPlay.id = "big-play";
-  const shuffle = el("button", "viz-chip", "🔀 Aleatorio");
+  const shuffle = el("button", "viz-chip");
+  shuffle.innerHTML = '<svg class="ic ic-sm"><use href="#i-shuffle"/></svg> Aleatorio';
   const detail = el("button", "viz-chip", "Ver detalle");
   shuffle.type = detail.type = "button";
   const actions = el("div", "actions");
@@ -467,7 +473,8 @@ function showMobileHome(list) {
   const title = el("h1", "m-welcome");
   title.append("Bienvenido", el("br"), "A darle el ", el("span", "m-korte", "korte"));
   const playAll = el("button", "big-play", "▶ Reproducir todo");
-  const shuffle = el("button", "viz-chip", "🔀 Aleatorio");
+  const shuffle = el("button", "viz-chip");
+  shuffle.innerHTML = '<svg class="ic ic-sm"><use href="#i-shuffle"/></svg> Aleatorio';
   playAll.type = shuffle.type = "button";
   playAll.addEventListener("click", () => playSong(list[0].id));
   shuffle.addEventListener("click", () => playSong(list[Math.floor(Math.random() * list.length)].id));
@@ -604,13 +611,13 @@ function markActive() {
 }
 
 function updatePlayState() {
-  playBtn.textContent = audio.paused ? "▶" : "⏸";
+  setIcon(playBtn, audio.paused ? "play" : "pause");
   syncNowPlaying();
   // La canción "en pantalla" es la del disco central (inicio) o la del detalle.
   const shownId = deck ? deck.list[deck.index].id : detailId;
   const playingHere = currentId === shownId && !audio.paused;
   const big = $("big-play");
-  if (big) big.textContent = playingHere ? "⏸ Pausar" : "▶ Reproducir";
+  if (big) big.innerHTML = `<svg class="ic fill ic-sm"><use href="#i-${playingHere ? "pause" : "play"}"/></svg> ${playingHere ? "Pausar" : "Reproducir"}`;
   $("vinyl")?.classList.toggle("playing", playingHere);
   document.querySelectorAll(".rec").forEach((r) => {
     r.classList.toggle("playing", Number(r.dataset.id) === currentId && !audio.paused);
@@ -874,14 +881,13 @@ function syncNowPlaying() {
   const isLiked = liked.has(song.id);
   $("npf-like").classList.toggle("on", isLiked);
   $("npf-like").setAttribute("aria-pressed", String(isLiked));
-  $("npf-heart").textContent = isLiked ? "♥" : "♡";
   $("npf-likes").textContent = song.likes ?? 0;
-  $("npf-play").textContent = audio.paused ? "▶" : "⏸";
+  setIcon($("npf-play"), audio.paused ? "play" : "pause");
   $("npf-shuffle").classList.toggle("on", shuffleOn);
   $("npf-shuffle").setAttribute("aria-pressed", String(shuffleOn));
   $("npf-repeat").classList.toggle("on", repeatOne);
   $("npf-repeat").setAttribute("aria-pressed", String(repeatOne));
-  $("npf-repeat").textContent = repeatOne ? "🔂" : "🔁";
+  setIcon($("npf-repeat"), repeatOne ? "repeat1" : "repeat");
 }
 
 function openNowPlaying() {
@@ -934,13 +940,13 @@ async function shareSong() {
   const song = currentSong();
   if (!song) return;
   const url = `${location.origin}${location.pathname}#/song/${song.id}`;
-  const btn = $("npf-share");
+  const label = $("npf-share-label");
   try {
     if (navigator.share) await navigator.share({ title: song.title, text: `${song.title} – ${song.artist}`, url });
     else {
       await navigator.clipboard.writeText(url);
-      btn.textContent = "✓";
-      setTimeout(() => (btn.textContent = "⤴"), 1200);
+      label.textContent = "Link copiado";
+      setTimeout(() => (label.textContent = "Compartir"), 1500);
     }
   } catch { /* el usuario canceló el diálogo de compartir */ }
 }

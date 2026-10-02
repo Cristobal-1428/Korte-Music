@@ -12,6 +12,21 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
+  <!-- Íconos propios: los emojis (⏸ 🔀 🔁) cada teléfono los dibuja distinto, a veces en naranja. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></symbol>
+    <symbol id="i-shuffle" viewBox="0 0 24 24"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></symbol>
+    <symbol id="i-repeat" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+    <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3M11 10h1v4"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></symbol>
+    <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></symbol>
+    <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  </svg>
+
   <div class="app">
     <aside class="sidebar">
       <div class="brand"><img class="brand-mark" src="assets/logo-icon.svg" alt="" /> Korte <span class="brand-accent">Music</span></div>
@@ -67,9 +82,9 @@
 
       <div class="controls">
         <div class="buttons">
-          <button type="button" class="ctrl" id="prev" aria-label="Anterior">⏮</button>
-          <button type="button" class="ctrl play" id="play" aria-label="Reproducir / pausa">▶</button>
-          <button type="button" class="ctrl" id="next" aria-label="Siguiente">⏭</button>
+          <button type="button" class="ctrl" id="prev" aria-label="Anterior"><svg class="ic fill"><use href="#i-prev"/></svg></button>
+          <button type="button" class="ctrl play" id="play" aria-label="Reproducir / pausa"><svg class="ic fill"><use href="#i-play"/></svg></button>
+          <button type="button" class="ctrl" id="next" aria-label="Siguiente"><svg class="ic fill"><use href="#i-next"/></svg></button>
         </div>
         <div class="seek">
           <span id="time-cur">0:00</span>
@@ -93,24 +108,23 @@
   <!-- Pantalla de reproducción: se abre al tocar el mini reproductor. -->
   <section id="nowplaying" class="nowplaying" hidden aria-label="Reproduciendo">
     <header class="npf-top">
-      <button type="button" class="icon-btn" id="npf-close" aria-label="Cerrar" title="Cerrar">⌄</button>
+      <button type="button" class="npf-icon" id="npf-close" aria-label="Cerrar" title="Cerrar"><svg class="ic"><use href="#i-down"/></svg></button>
       <span class="npf-kicker">Reproduciendo</span>
-      <button type="button" class="icon-btn" id="npf-share" aria-label="Compartir" title="Compartir">⤴</button>
+      <span></span>
     </header>
 
-    <div class="npf-cover" id="npf-cover"></div>
+    <div class="npf-art"><div class="npf-cover" id="npf-cover"></div></div>
 
-    <div class="npf-info">
-      <h2 id="npf-title"></h2>
-      <p id="npf-artist"></p>
-    </div>
-
-    <div class="npf-chips">
-      <button type="button" class="npf-chip" id="npf-like" aria-pressed="false">
-        <span id="npf-heart" aria-hidden="true">♡</span> <span id="npf-likes">0</span>
+    <div class="npf-meta">
+      <div class="npf-info">
+        <h2 id="npf-title"></h2>
+        <p id="npf-artist"></p>
+        <span id="npf-plays"></span>
+      </div>
+      <button type="button" class="npf-like" id="npf-like" aria-label="Me gusta" aria-pressed="false">
+        <svg class="ic" id="npf-heart"><use href="#i-heart"/></svg>
+        <span id="npf-likes">0</span>
       </button>
-      <button type="button" class="npf-chip" id="npf-viz">🌀 Visualizador</button>
-      <span class="npf-chip npf-static" id="npf-plays"></span>
     </div>
 
     <div class="npf-seek">
@@ -119,11 +133,16 @@
     </div>
 
     <div class="npf-controls">
-      <button type="button" class="npf-btn" id="npf-shuffle" aria-label="Aleatorio" aria-pressed="false">🔀</button>
-      <button type="button" class="npf-btn" id="npf-prev" aria-label="Anterior">⏮</button>
-      <button type="button" class="npf-play" id="npf-play" aria-label="Reproducir / pausa">▶</button>
-      <button type="button" class="npf-btn" id="npf-next" aria-label="Siguiente">⏭</button>
-      <button type="button" class="npf-btn" id="npf-repeat" aria-label="Repetir canción" aria-pressed="false">🔁</button>
+      <button type="button" class="npf-btn" id="npf-shuffle" aria-label="Aleatorio" aria-pressed="false"><svg class="ic"><use href="#i-shuffle"/></svg></button>
+      <button type="button" class="npf-btn" id="npf-prev" aria-label="Anterior"><svg class="ic fill"><use href="#i-prev"/></svg></button>
+      <button type="button" class="npf-play" id="npf-play" aria-label="Reproducir / pausa"><svg class="ic fill"><use href="#i-play"/></svg></button>
+      <button type="button" class="npf-btn" id="npf-next" aria-label="Siguiente"><svg class="ic fill"><use href="#i-next"/></svg></button>
+      <button type="button" class="npf-btn" id="npf-repeat" aria-label="Repetir canción" aria-pressed="false"><svg class="ic"><use href="#i-repeat"/></svg></button>
+    </div>
+
+    <div class="npf-foot">
+      <button type="button" class="npf-link" id="npf-viz"><svg class="ic"><use href="#i-bars"/></svg>Visualizador</button>
+      <button type="button" class="npf-link" id="npf-share"><svg class="ic"><use href="#i-share"/></svg><span id="npf-share-label">Compartir</span></button>
     </div>
   </section>
 
