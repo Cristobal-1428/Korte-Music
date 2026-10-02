@@ -41,6 +41,7 @@ def init_db() -> None:
         "plays": "INTEGER NOT NULL DEFAULT 0",
         "likes": "INTEGER NOT NULL DEFAULT 0",
         "is_private": "BOOLEAN NOT NULL DEFAULT FALSE",
+        "cover_path": "VARCHAR",
     }
     for column, definition in new_columns.items():
         if column not in existing:

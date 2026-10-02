@@ -14,7 +14,12 @@ class Song(SQLModel, table=True):
     likes: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     # Privada: solo la ve quien tenga la clave de administrador; su audio va a un almacenamiento no público.
     is_private: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    cover_path: str | None = None  # imagen de portada (opcional), mismo almacenamiento que el audio
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def has_cover(self) -> bool:
+        return bool(self.cover_path)
 
 
 class SongRead(SQLModel):
@@ -26,4 +31,5 @@ class SongRead(SQLModel):
     plays: int = 0
     likes: int = 0
     is_private: bool = False
+    has_cover: bool = False
     created_at: datetime

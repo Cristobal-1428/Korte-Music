@@ -38,12 +38,22 @@ function hue(song) {
   return h;
 }
 
+function coverUrl(song) {
+  const base = `${API_URL}/songs/${song.id}/cover`;
+  return song.is_private ? `${base}?t=${encodeURIComponent(privateToken || "")}` : base;
+}
+
+// Con portada subida, la imagen se recorta sola para llenar el cuadro; el degradado queda de fondo mientras carga.
 function coverStyle(song) {
   const h = hue(song);
-  return `background: linear-gradient(135deg, hsl(${h} 70% 45%), hsl(${(h + 50) % 360} 70% 25%))`;
+  const gradient = `linear-gradient(135deg, hsl(${h} 70% 45%), hsl(${(h + 50) % 360} 70% 25%))`;
+  return song.has_cover
+    ? `background: url("${coverUrl(song)}") center / cover no-repeat, ${gradient}`
+    : `background: ${gradient}`;
 }
 
 function initial(song) {
+  if (song.has_cover) return "";
   return song.title.trim().charAt(0).toUpperCase() || "♪";
 }
 
@@ -880,7 +890,7 @@ function setMediaMetadata(song) {
         title: song.title,
         artist: song.artist,
         album: "Korte Music",
-        artwork: [{ src: coverArt(song), sizes: "512x512", type: "image/png" }],
+        artwork: [song.has_cover ? { src: coverUrl(song), sizes: "600x600" } : { src: coverArt(song), sizes: "512x512", type: "image/png" }],
       })
     : null;
 }
@@ -1348,16 +1358,39 @@ $("tab-upload").addEventListener("click", openUpload);
 $("open-upload").addEventListener("click", openUpload);
 $("cancel-upload").addEventListener("click", () => dialog.close());
 
+// Recorta la imagen al centro en un cuadrado de 600 px y la comprime: cualquier foto queda con el mismo formato y peso liviano.
+async function squareCover(file) {
+  const size = 600;
+  const bitmap = await createImageBitmap(file);
+  const side = Math.min(bitmap.width, bitmap.height);
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = size;
+  canvas
+    .getContext("2d")
+    .drawImage(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side, 0, 0, size, size);
+  bitmap.close?.();
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
+  if (!blob) throw new Error("No se pudo procesar la imagen");
+  return blob;
+}
+
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   submitBtn.disabled = true;
   uploadStatus.className = "";
   uploadStatus.textContent = "Subiendo...";
   try {
-    const res = await adminFetch(`${API_URL}/songs`, {
-      method: "POST",
-      body: new FormData(form), // multipart/form-data; el navegador fija el boundary
-    });
+    const body = new FormData(form); // multipart/form-data; el navegador fija el boundary
+    const coverFile = form.elements.cover.files[0];
+    body.delete("cover");
+    if (coverFile) {
+      try {
+        body.append("cover", await squareCover(coverFile), "cover.jpg");
+      } catch {
+        throw new Error("No se pudo leer la imagen de portada");
+      }
+    }
+    const res = await adminFetch(`${API_URL}/songs`, { method: "POST", body });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(typeof err.detail === "string" ? err.detail : "Error al subir");

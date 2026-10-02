@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import case, update
 from sqlmodel import Session, select
 
@@ -25,6 +25,13 @@ ALLOWED_TYPES = {
     ".m4a": "audio/mp4",
     ".flac": "audio/flac",
 }
+COVER_TYPES = {
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".png": "image/png",
+    ".webp": "image/webp",
+}
+MAX_COVER_BYTES = 5 * 1024 * 1024
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
 UPLOAD_CHUNK = 1024 * 1024
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
@@ -104,6 +111,7 @@ async def upload_song(
     artist: str = Form(..., min_length=1, max_length=200),
     is_private: bool = Form(False),
     file: UploadFile = File(...),
+    cover: UploadFile | None = File(None),
     session: Session = Depends(get_session),
 ):
     if is_private and not ADMIN_KEY:
@@ -114,6 +122,17 @@ async def upload_song(
 
     # Nombre generado en el servidor: evita colisiones y path traversal.
     stored_name = f"{uuid.uuid4().hex}{ext}"
+
+    # La portada es opcional; un campo de archivo vacío llega sin nombre y se ignora.
+    cover_name = cover_data = None
+    cover_ext = Path(cover.filename or "").suffix.lower() if cover else ""
+    if cover and cover.filename:
+        if cover_ext not in COVER_TYPES:
+            raise HTTPException(400, f"Formato de portada no permitido. Usa: {', '.join(COVER_TYPES)}")
+        cover_data = await cover.read(MAX_COVER_BYTES + 1)
+        if len(cover_data) > MAX_COVER_BYTES:
+            raise HTTPException(413, f"Portada demasiado grande (máx. {MAX_COVER_BYTES // (1024 * 1024)} MB)")
+        cover_name = f"cover-{uuid.uuid4().hex}{cover_ext}"
 
     chunks: list[bytes] = []
     size = 0
@@ -128,12 +147,20 @@ async def upload_song(
     except Exception as exc:
         raise HTTPException(502, f"No se pudo guardar el audio: {exc}")
 
+    if cover_name:
+        try:
+            await storage.save(cover_name, cover_data, COVER_TYPES[cover_ext], private=is_private)
+        except Exception as exc:
+            await storage.delete(stored_name, private=is_private)  # sin portada guardada no se deja el audio huérfano
+            raise HTTPException(502, f"No se pudo guardar la portada: {exc}")
+
     song = Song(
         title=title.strip(),
         artist=artist.strip(),
         file_path=stored_name,
         content_type=ALLOWED_TYPES[ext],
         is_private=is_private,
+        cover_path=cover_name,
     )
     session.add(song)
     session.commit()
@@ -160,6 +187,11 @@ async def delete_song(song_id: int, session: Session = Depends(get_session)):
         await storage.delete(song.file_path, private=song.is_private)
     except Exception as exc:
         raise HTTPException(502, f"No se pudo borrar el audio: {exc}")
+    if song.cover_path:
+        try:
+            await storage.delete(song.cover_path, private=song.is_private)
+        except Exception:
+            pass  # una portada huérfana no impide borrar la canción
     session.delete(song)
     session.commit()
 
@@ -237,3 +269,22 @@ async def stream_song(
     if not path.is_file():
         raise HTTPException(404, "Archivo de audio no encontrado en disco")
     return range_response(path, range, song.content_type)
+
+
+@app.get("/songs/{song_id}/cover")
+async def song_cover(song_id: int, t: str | None = Query(default=None), session: Session = Depends(get_session)):
+    song = session.get(Song, song_id)
+    if song is None or not song.cover_path or (song.is_private and not valid_session_token(t)):
+        raise HTTPException(404, "Portada no encontrada")
+    if storage.USE_SUPABASE:
+        if song.is_private:
+            try:
+                url = await storage.signed_url(song.cover_path)
+            except Exception as exc:
+                raise HTTPException(502, f"No se pudo preparar la portada privada: {exc}")
+            return RedirectResponse(url, status_code=302, headers={"Cache-Control": "private, max-age=600"})
+        return RedirectResponse(storage.public_url(song.cover_path), status_code=302, headers={"Cache-Control": "public, max-age=86400"})
+    path = storage.local_path(song.cover_path, private=song.is_private)
+    if not path.is_file():
+        raise HTTPException(404, "Portada no encontrada en disco")
+    return FileResponse(path, media_type=COVER_TYPES.get(path.suffix.lower(), "image/jpeg"))
