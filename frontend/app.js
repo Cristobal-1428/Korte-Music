@@ -15,6 +15,8 @@ const form = $("upload-form");
 const uploadStatus = $("upload-status");
 const submitBtn = $("submit-upload");
 
+const isMobile = window.matchMedia("(max-width: 800px)");
+
 let songs = [];
 let currentId = null; // canción cargada en el reproductor
 let detailId = null; // canción abierta en la vista de detalle
@@ -274,8 +276,10 @@ function showHome() {
   homeStage = null;
   stageCanvas = null;
   $("nav-home").classList.add("active");
+  $("tab-home").classList.add("active");
 
   const list = visibleSongs();
+  if (isMobile.matches && list.length) return showMobileHome(list);
   if (list.length === 0) {
     main.style.removeProperty("--tint");
     syncViz();
@@ -295,10 +299,11 @@ function showHome() {
 
   // Cabecera: saludo y controles del visualizador de fondo.
   const hello = el("div", "home-hello");
-  hello.append(
-    el("h1", "", greeting()),
-    el("p", "", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"} en tu biblioteca`),
-  );
+  const helloStats = el("p", "");
+  const helloPlays = el("span", "");
+  helloPlays.dataset.playsTotal = "";
+  helloStats.append(`${songs.length} ${songs.length === 1 ? "canción" : "canciones"} en tu biblioteca · `, helloPlays);
+  hello.append(el("h1", "", greeting()), helloStats);
   const modes = el("div", "viz-modes");
   const palettes = el("div", "viz-palettes");
   fillVizControls(modes, palettes);
@@ -379,11 +384,117 @@ function showHome() {
   });
 
   layoutDeck();
+  refreshPlays();
   stageCanvas = canvas;
   main.scrollTop = 0;
   markActive();
   syncViz();
 }
+
+/* ---------- Vista: inicio en el celular ---------- */
+
+function playsText(n) {
+  return `${n} ${n === 1 ? "reproducción" : "reproducciones"}`;
+}
+
+// Cada elemento con data-plays-for muestra el contador de esa canción; data-plays-total, el de toda la biblioteca.
+function refreshPlays() {
+  document.querySelectorAll("[data-plays-for]").forEach((node) => {
+    const song = songs.find((s) => s.id === Number(node.dataset.playsFor));
+    if (song) node.textContent = node.dataset.prefix ? `${node.dataset.prefix}${playsText(song.plays)}` : playsText(song.plays);
+  });
+  document.querySelectorAll("[data-plays-total]").forEach((node) => {
+    node.textContent = playsText(songs.reduce((sum, s) => sum + s.plays, 0));
+  });
+}
+
+// Fila compacta: toca para reproducir; › abre el detalle y ✕ elimina.
+function makeRow(song) {
+  const cover = el("div", "m-cover", initial(song));
+  cover.style.cssText = coverStyle(song);
+  const meta = el("div", "m-meta");
+  const sub = el("span", "m-sub");
+  sub.append(`${song.artist} · `);
+  const plays = el("span", "");
+  plays.dataset.playsFor = song.id;
+  plays.textContent = playsText(song.plays);
+  sub.append(plays);
+  meta.append(el("span", "m-title", song.title), sub);
+
+  const detail = el("button", "m-btn", "›");
+  detail.type = "button";
+  detail.setAttribute("aria-label", `Ver detalle de ${song.title}`);
+  detail.addEventListener("click", (e) => { e.stopPropagation(); openSong(song.id); });
+  const del = el("button", "m-btn m-del", "✕");
+  del.type = "button";
+  del.setAttribute("aria-label", `Eliminar ${song.title}`);
+  del.addEventListener("click", (e) => { e.stopPropagation(); deleteSong(song); });
+
+  const row = el("div", "m-row");
+  row.dataset.id = song.id;
+  row.append(cover, meta, detail, del);
+  row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id)));
+  return row;
+}
+
+// Tarjeta pequeña para el carrusel horizontal.
+function makeMiniCard(song) {
+  const cover = el("div", "m-card-cover", initial(song));
+  cover.style.cssText = coverStyle(song);
+  const card = el("div", "m-card");
+  card.dataset.id = song.id;
+  card.append(cover, el("div", "m-card-title", song.title), el("div", "m-card-artist", song.artist));
+  card.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id)));
+  return card;
+}
+
+function showMobileHome(list) {
+  main.style.setProperty("--tint", "hsl(350 55% 18%)");
+  syncViz(); // sin escenario no hay visualizador de fondo
+
+  const hero = el("section", "m-hero");
+  // Icono + texto en vez de logo.png: ese PNG trae fondo oscuro propio y se nota sobre el degradado.
+  const mark = el("img", "m-mark");
+  mark.src = "assets/logo-icon.svg";
+  mark.alt = "";
+  const logo = el("div", "m-logo");
+  logo.append(mark, "Korte ", el("span", "m-korte", "Music"));
+  const stats = el("p", "m-stats");
+  const total = el("span", "");
+  total.dataset.playsTotal = "";
+  stats.append(`${songs.length} ${songs.length === 1 ? "canción" : "canciones"} · `, total);
+  const title = el("h1", "m-welcome");
+  title.append("Bienvenido", el("br"), "A darle el ", el("span", "m-korte", "korte"));
+  const playAll = el("button", "big-play", "▶ Reproducir todo");
+  const shuffle = el("button", "viz-chip", "🔀 Aleatorio");
+  playAll.type = shuffle.type = "button";
+  playAll.addEventListener("click", () => playSong(list[0].id));
+  shuffle.addEventListener("click", () => playSong(list[Math.floor(Math.random() * list.length)].id));
+  const actions = el("div", "actions");
+  actions.append(playAll, shuffle);
+  hero.append(logo, title, stats, actions);
+
+  view.replaceChildren(hero);
+
+  // Carrusel: lo más escuchado (o lo más reciente si todavía nadie reproduce nada).
+  const popular = [...list].sort((a, b) => b.plays - a.plays).filter((s) => s.plays > 0).slice(0, 8);
+  const strip = popular.length ? popular : list.slice(0, 8);
+  const carousel = el("div", "m-carousel");
+  carousel.append(...strip.map(makeMiniCard));
+  view.append(el("h2", "m-section", popular.length ? "Lo más escuchado" : "Recién subidas"), carousel);
+
+  const rows = el("div", "m-rows");
+  rows.append(...list.map(makeRow));
+  view.append(el("h2", "m-section", "Tus canciones"), rows);
+
+  main.scrollTop = 0;
+  refreshPlays();
+  markActive();
+  updatePlayState();
+}
+
+// Al girar el teléfono o cambiar el ancho, la vista se rehace con el diseño que corresponda.
+isMobile.addEventListener("change", () => route());
 
 /* ---------- Vista: detalle de canción (escenario) ---------- */
 
@@ -392,6 +503,7 @@ function showDetail(song) {
   deck = null;
   homeStage = null;
   $("nav-home").classList.remove("active");
+  $("tab-home").classList.remove("active");
   const h = hue(song);
   main.style.setProperty("--tint", `hsl(${h} 55% 20%)`);
 
@@ -407,10 +519,14 @@ function showDetail(song) {
 
   // Datos
   const durChip = el("span", "chip", "⏱ –:––");
+  const playsChip = el("span", "chip");
+  playsChip.dataset.playsFor = song.id;
+  playsChip.dataset.prefix = "▶ ";
   const chips = el("div", "chips");
   chips.append(
     el("span", "chip", String(new Date(song.created_at).getFullYear())),
     durChip,
+    playsChip,
     el("span", "chip", `Subida el ${formatDate(song.created_at)}`),
   );
 
@@ -464,6 +580,7 @@ function showDetail(song) {
     view.append(el("h2", "section-title", `Más de ${song.artist}`), grid);
   }
 
+  refreshPlays();
   loadDuration(song, (secs) => {
     if (detailId !== song.id) return; // el usuario ya navegó a otra vista
     durChip.textContent = `⏱ ${formatTime(secs)}`;
@@ -480,7 +597,7 @@ function showDetail(song) {
 /* ---------- Estado activo / play ---------- */
 
 function markActive() {
-  document.querySelectorAll(".card, #library-list li").forEach((node) => {
+  document.querySelectorAll(".card, #library-list li, .m-row, .m-card").forEach((node) => {
     node.classList.toggle("active", Number(node.dataset.id) === currentId);
   });
 }
@@ -515,6 +632,9 @@ function playSong(id) {
   const song = songs.find((s) => s.id === id);
   if (!song) return;
   currentId = id;
+  listened = 0;
+  lastTime = 0;
+  playCounted = false;
   if (deck) deckGo(deck.list.findIndex((s) => s.id === id)); // la bandeja sigue a la canción que suena
   // El <audio> pide fragmentos con la cabecera Range automáticamente.
   audio.src = streamUrl(id);
@@ -551,7 +671,30 @@ audio.addEventListener("play", updatePlayState);
 audio.addEventListener("pause", updatePlayState);
 audio.addEventListener("ended", () => step(1));
 audio.addEventListener("loadedmetadata", () => ($("time-dur").textContent = formatTime(audio.duration)));
+// Cuenta una reproducción cuando se han escuchado 10 s de verdad (o la mitad, si la canción es más corta).
+// Se suman solo avances normales: saltar la barra de progreso no cuenta como escuchar.
+let listened = 0;
+let lastTime = 0;
+let playCounted = false;
+
+async function countPlay(id) {
+  try {
+    const res = await fetch(`${API_URL}/songs/${id}/play`, { method: "POST" });
+    if (!res.ok) return;
+    const song = songs.find((s) => s.id === id);
+    if (song) song.plays = (await res.json()).plays;
+    refreshPlays();
+  } catch { /* el contador es secundario: si falla, no molesta */ }
+}
+
 audio.addEventListener("timeupdate", () => {
+  const delta = audio.currentTime - lastTime;
+  lastTime = audio.currentTime;
+  if (!audio.paused && delta > 0 && delta < 1.5) listened += delta;
+  if (!playCounted && currentId !== null && listened >= Math.min(10, (audio.duration || 20) / 2)) {
+    playCounted = true;
+    countPlay(currentId);
+  }
   $("time-cur").textContent = formatTime(audio.currentTime);
   if (!seeking && audio.duration) seek.value = (audio.currentTime / audio.duration) * 100;
 });
@@ -696,6 +839,7 @@ function openUpload(e) {
   dialog.showModal();
 }
 $("nav-upload").addEventListener("click", openUpload);
+$("tab-upload").addEventListener("click", openUpload);
 $("open-upload").addEventListener("click", openUpload);
 $("cancel-upload").addEventListener("click", () => dialog.close());
 

@@ -4,12 +4,17 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Korte Music</title>
+  <meta name="theme-color" content="#121212" />
+  <link rel="icon" type="image/svg+xml" href="assets/logo-icon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png" />
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <div class="app">
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">♪</span> Korte Music</div>
+      <div class="brand"><img class="brand-mark" src="assets/logo-icon.svg" alt="" /> Korte <span class="brand-accent">Music</span></div>
 
       <nav class="nav">
         <a href="#/" class="nav-item active" id="nav-home">Inicio</a>
@@ -84,6 +89,12 @@
       <audio id="audio" preload="metadata" crossorigin="anonymous"></audio>
     </footer>
   </div>
+
+  <!-- Navegación inferior: solo se ve en el celular (el menú lateral no cabe). -->
+  <nav class="tabbar" aria-label="Navegación">
+    <a href="#/" class="tab active" id="tab-home"><span class="tab-ico">⌂</span>Inicio</a>
+    <button type="button" class="tab" id="tab-upload"><span class="tab-ico">＋</span>Subir</button>
+  </nav>
 
   <dialog id="upload-dialog">
     <form id="upload-form">

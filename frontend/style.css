@@ -72,14 +72,8 @@ button { cursor: pointer; }
   font-weight: 800;
   padding: 0 10px 20px;
 }
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-  background: var(--accent);
-}
+.brand-mark { width: 32px; height: 32px; border-radius: 8px; flex: none; }
+.brand-accent { color: var(--accent); }
 
 .nav { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
 .nav-item {
@@ -575,13 +569,106 @@ dialog input[type="text"], dialog input[type="file"] {
 .btn-ghost { background: none; color: var(--muted); }
 .btn-ghost:hover { color: var(--text); }
 
+.tabbar { display: none; }
+
+/* ---------- Inicio en el celular ---------- */
+.m-hero { padding: 4px 0 8px; }
+.m-logo { display: flex; align-items: center; gap: 10px; font-size: 1.25rem; font-weight: 800; margin: 0 0 18px; }
+.m-mark { width: 38px; height: 38px; border-radius: 10px; }
+.m-welcome { font-size: 2rem; line-height: 1.1; margin: 0 0 8px; font-weight: 900; }
+.m-korte { color: var(--accent); }
+.m-stats { margin: 0 0 16px; color: var(--muted); font-size: 0.9rem; }
+.m-section { font-size: 1.15rem; margin: 26px 0 12px; }
+
+.m-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  margin: 0 -16px;
+  padding: 0 16px 4px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+.m-carousel::-webkit-scrollbar { display: none; }
+.m-card { flex: none; width: 118px; scroll-snap-align: start; cursor: pointer; }
+.m-card-cover {
+  aspect-ratio: 1;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 2.2rem;
+  font-weight: 800;
+  margin-bottom: 8px;
+  text-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+}
+.m-card-title, .m-card-artist { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-card-title { font-weight: 700; font-size: 0.9rem; }
+.m-card-artist { color: var(--muted); font-size: 0.78rem; }
+.m-card.active .m-card-title { color: var(--accent); }
+
+.m-rows { display: grid; gap: 2px; }
+.m-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 4px;
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.m-row:active { background: var(--panel-hover); }
+.m-cover { width: 48px; height: 48px; border-radius: 8px; flex: none; display: grid; place-items: center; font-weight: 800; }
+.m-meta { min-width: 0; flex: 1; display: grid; }
+.m-title, .m-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m-title { font-weight: 600; }
+.m-sub { color: var(--muted); font-size: 0.8rem; }
+.m-row.active .m-title { color: var(--accent); }
+.m-btn { flex: none; border: 0; background: none; color: var(--muted); font-size: 1.2rem; width: 36px; height: 40px; border-radius: 8px; }
+.m-del { font-size: 0.95rem; opacity: 0.6; }
+.m-btn:active { background: var(--panel-hover); color: var(--text); }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 800px) {
-  .app { grid-template-columns: 1fr; }
+  :root { --player-h: 68px; --tab-h: 58px; }
+  .app {
+    grid-template-columns: 1fr;
+    height: 100dvh;
+    padding-bottom: calc(var(--tab-h) + 8px + env(safe-area-inset-bottom));
+  }
   .sidebar { display: none; }
-  .player { grid-template-columns: 1fr auto; }
+  .player { grid-template-columns: 1fr auto; padding: 0 12px; }
+  .np-cover { width: 46px; height: 46px; }
   .volume { display: none; }
   .seek { display: none; }
   .controls { align-items: flex-end; }
-  .main { padding: 16px; }
+  .main { padding: 14px 16px 24px; }
+
+  .tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    height: calc(var(--tab-h) + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+    background: #000;
+    border-top: 1px solid #1f1f22;
+  }
+  .tab {
+    flex: 1;
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    border: 0;
+    background: none;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .tab-ico { font-size: 1.35rem; line-height: 1; }
+  .tab.active { color: var(--text); }
+  .tab.active .tab-ico { color: var(--accent); }
 }
