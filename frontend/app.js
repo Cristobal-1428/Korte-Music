@@ -1297,6 +1297,29 @@ $("npf-viz").addEventListener("click", () => {
 $("npf-play").addEventListener("click", togglePlay);
 $("npf-prev").addEventListener("click", () => step(-1));
 $("npf-next").addEventListener("click", () => step(1));
+
+// Deslizar a los lados en la pantalla de reproducción cambia de canción (izquierda: siguiente, derecha: anterior).
+let swipe = null;
+npf.addEventListener("pointerdown", (e) => {
+  swipe = e.target.closest("button, canvas, input") ? null : { x: e.clientX, y: e.clientY };
+});
+npf.addEventListener("pointercancel", () => (swipe = null));
+npf.addEventListener("pointerup", (e) => {
+  if (!swipe) return;
+  const dx = e.clientX - swipe.x;
+  const dy = e.clientY - swipe.y;
+  swipe = null;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+  step(dx < 0 ? 1 : -1);
+  syncNowPlaying();
+  const dir = dx < 0 ? 1 : -1;
+  for (const node of [$("npf-cover"), document.querySelector(".npf-info")]) {
+    node?.animate(
+      [{ transform: `translateX(${dir * 40}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
+      { duration: 220, easing: "ease-out" },
+    );
+  }
+});
 $("npf-shuffle").addEventListener("click", () => {
   shuffleOn = !shuffleOn;
   pref.set("shuffle", shuffleOn ? "1" : "0");

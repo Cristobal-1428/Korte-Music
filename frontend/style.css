@@ -601,6 +601,7 @@ dialog input[type="file"]::file-selector-button {
 .np { cursor: pointer; }
 body.npf-open { overflow: hidden; }
 .nowplaying {
+  touch-action: pan-y; /* los deslizamientos horizontales los maneja la app (cambiar de canción) */
   position: fixed;
   inset: 0;
   z-index: 40;
