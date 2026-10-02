@@ -82,6 +82,48 @@ async function loadSongs() {
   route();
 }
 
+// Borra la canción (fila y audio). Si el servidor pide clave de administrador, la pregunta una vez y la recuerda.
+async function deleteSong(song) {
+  if (!confirm(`¿Eliminar "${song.title}" de ${song.artist}? Esta acción no se puede deshacer.`)) return;
+  const send = () => {
+    const key = localStorage.getItem("admin-key");
+    return fetch(`${API_URL}/songs/${song.id}`, { method: "DELETE", headers: key ? { "X-Admin-Key": key } : {} });
+  };
+  try {
+    let res = await send();
+    if (res.status === 401) {
+      const key = prompt("Clave de administrador:");
+      if (!key) return;
+      localStorage.setItem("admin-key", key);
+      res = await send();
+      if (res.status === 401) localStorage.removeItem("admin-key");
+    }
+    if (!res.ok && res.status !== 404) {
+      const detail = await res.json().catch(() => ({}));
+      throw new Error(detail.detail || "No se pudo eliminar la canción");
+    }
+  } catch (e) {
+    alert(e.message);
+    return;
+  }
+
+  durations.delete(song.id);
+  if (currentId === song.id) {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    currentId = null;
+    $("np-title").textContent = "Nada en reproducción";
+    $("np-artist").innerHTML = "&nbsp;";
+    $("np-cover").textContent = "";
+    $("np-cover").style.cssText = "";
+    $("time-dur").textContent = "0:00";
+  }
+  if (location.hash === `#/song/${song.id}`) location.hash = ""; // sale del detalle de la canción borrada
+  await loadSongs().catch((e) => alert(e.message));
+  updatePlayState();
+}
+
 function visibleSongs() {
   const q = search.value.trim().toLowerCase();
   if (!q) return songs;
@@ -146,7 +188,15 @@ function renderLibrary() {
     cover.style.cssText = coverStyle(song);
     const text = el("div", "li-text");
     text.append(el("span", "li-title", song.title), el("span", "li-artist", song.artist));
-    li.append(cover, text);
+    const del = el("button", "li-delete", "✕");
+    del.type = "button";
+    del.title = "Eliminar canción";
+    del.setAttribute("aria-label", `Eliminar ${song.title}`);
+    del.addEventListener("click", (e) => {
+      e.stopPropagation(); // no abrir el detalle
+      deleteSong(song);
+    });
+    li.append(cover, text, del);
     li.addEventListener("click", () => openSong(song.id));
     libraryList.append(li);
   }
