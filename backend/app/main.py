@@ -53,7 +53,13 @@ app.add_middleware(
 )
 
 
-@app.post("/songs", response_model=SongRead, status_code=201)
+def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
+    """Si ADMIN_KEY está definida, subir y borrar canciones exigen la cabecera X-Admin-Key; si no, no hay restricción."""
+    if ADMIN_KEY and not secrets.compare_digest((x_admin_key or "").encode(), ADMIN_KEY.encode()):
+        raise HTTPException(401, "Clave de administrador incorrecta")
+
+
+@app.post("/songs", response_model=SongRead, status_code=201, dependencies=[Depends(require_admin)])
 async def upload_song(
     title: str = Form(..., min_length=1, max_length=200),
     artist: str = Form(..., min_length=1, max_length=200),
@@ -95,12 +101,6 @@ async def upload_song(
 @app.get("/songs", response_model=list[SongRead])
 def list_songs(session: Session = Depends(get_session)):
     return session.exec(select(Song).order_by(Song.created_at.desc())).all()
-
-
-def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
-    """Si ADMIN_KEY está definida, borrar exige la cabecera X-Admin-Key; si no, no hay restricción."""
-    if ADMIN_KEY and not secrets.compare_digest(x_admin_key or "", ADMIN_KEY):
-        raise HTTPException(401, "Clave de administrador incorrecta")
 
 
 @app.delete("/songs/{song_id}", status_code=204, dependencies=[Depends(require_admin)])
