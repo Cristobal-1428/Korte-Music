@@ -2,7 +2,9 @@
  * Korte Music — intro de carga con corte
  * Uso: cargar korte-intro.js con un tag script normal (sin defer ni async) como PRIMER elemento dentro de body.
  * Corre sola al cargar. Para controlarla a mano: data-auto="false" y luego KorteIntro.play({...}).
- * Opciones: minDuration (ms, default 900), oncePerSession (bool, default false), onDone (fn).
+ * Opciones: minDuration (ms, default 1000), oncePerSession (bool, default false), onDone (fn).
+ * Movimiento: el disco gira mientras la app carga; cuando está por terminar frena con la K derecha,
+ * el corte cruza el logo y la pantalla se parte para dejar entrar a la app.
  * Al terminar dispara el evento "korte:intro-done" en window.
  */
 (function () {
@@ -17,6 +19,11 @@
     return '<circle cx="500" cy="380" r="232" fill="' + FG + '"/>' + rings +
       '<circle cx="500" cy="380" r="88" fill="' + AC + '"/><path d="' + P.K + '" fill="' + BG + '"/>';
   }
+  // El disco dentro de un grupo que gira sobre su propio centro (500,380). Los recortes del corte quedan fuera
+  // del giro, así la línea del corte no se mueve aunque el disco gire por debajo.
+  function spinDisc() {
+    return '<g transform="translate(500,380)"><g class="ki-spin"><g transform="translate(-500,-380)">' + disc() + '</g></g></g>';
+  }
   function word() { return '<path d="' + P.WORD + '" fill="' + FG + '"/>'; }
 
   function logoSVG() {
@@ -27,8 +34,8 @@
       '<clipPath id="ki-tt"><polygon points="0,0 1000,0 1000,760 0,790"/></clipPath>' +
       '<clipPath id="ki-tb"><polygon points="0,790 1000,760 1000,1000 0,1000"/></clipPath>' +
       '</defs>' +
-      '<g clip-path="url(#ki-db)">' + disc() + '</g>' +
-      '<g class="ki-disc-top"><g clip-path="url(#ki-dt)">' + disc() + '</g></g>' +
+      '<g clip-path="url(#ki-db)">' + spinDisc() + '</g>' +
+      '<g class="ki-disc-top"><g clip-path="url(#ki-dt)">' + spinDisc() + '</g></g>' +
       '<g clip-path="url(#ki-tb)">' + word() + '</g>' +
       '<g class="ki-word-top"><g clip-path="url(#ki-tt)">' + word() + '</g></g>' +
       '<path d="' + P.MUSIC + '" fill="' + FG + '" opacity=".85"/>' +
@@ -62,7 +69,7 @@
   function play(opts) {
     opts = opts || {};
     if (running) return;
-    var minDuration = opts.minDuration != null ? opts.minDuration : 900;
+    var minDuration = opts.minDuration != null ? opts.minDuration : 1000;
     if (opts.oncePerSession) {
       try { if (sessionStorage.getItem("korte-intro-seen")) return; sessionStorage.setItem("korte-intro-seen", "1"); } catch (e) {}
     }
@@ -98,13 +105,41 @@
       return;
     }
 
+    // El disco gira desde el primer momento (las dos mitades del corte giran juntas, sincronizadas).
+    var SPIN_MS = 900;   // una vuelta completa
+    var BRAKE_MS = 500;  // lo que tarda en frenar
+    var spins = overlay.querySelectorAll(".ki-spin");
+    var spinning = [].map.call(spins, function (s) {
+      return s.animate([{ transform: "rotate(0deg)" }, { transform: "rotate(360deg)" }], { duration: SPIN_MS, iterations: Infinity });
+    });
+
     // 1. Entra el logo (entero, sin corte)
     logo.animate([{ opacity: 0, transform: "scale(.92)" }, { opacity: 1, transform: "scale(1)" }],
       { duration: 550, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }).finished
     // 2. Espera a que cargue la app (con tope de 6 s) y al tiempo mínimo
     .then(function () { return pageLoaded(6000); })
     .then(function () { return wait(Math.max(0, minDuration - (Date.now() - start))); })
-    // 3. El corte cruza la pantalla justo por la línea del disco
+    // 3. Está por cargar: el disco frena de forma continua y se detiene con la K derecha
+    .then(function () {
+      return new Promise(function (resolve) {
+        var v0 = 360 / SPIN_MS;                // velocidad del giro, en grados por ms
+        var stopAt = 360 - v0 * BRAKE_MS / 2;  // ángulo desde el que, frenando parejo, queda exactamente derecho
+        var armed = false;                     // solo frena en la vuelta siguiente, nunca de golpe
+        (function tick() {
+          var a = ((spinning[0].currentTime || 0) % SPIN_MS) * v0;
+          if (a < stopAt) armed = true;
+          if (!armed || a < stopAt) return requestAnimationFrame(tick);
+          var ms = 2 * (360 - a) / v0;         // frenado uniforme: la velocidad llega a 0 justo al quedar derecho
+          var braking = [].map.call(spins, function (s) {
+            return s.animate([{ transform: "rotate(" + a + "deg)" }, { transform: "rotate(360deg)" }],
+              { duration: ms, easing: "cubic-bezier(.333,.667,.667,1)", fill: "forwards" });
+          });
+          spinning.forEach(function (x) { x.cancel(); });
+          Promise.all(braking.map(function (x) { return x.finished; })).then(resolve);
+        })();
+      });
+    })
+    // 4. El corte cruza la pantalla justo por la línea del disco
     .then(function () {
       var W = window.innerWidth, H = window.innerHeight;
       var pt = logo.createSVGPoint(); pt.x = 500; pt.y = 380;
@@ -121,7 +156,7 @@
         { duration: 240, easing: "cubic-bezier(.7,0,.9,.5)", fill: "forwards" }).finished
         .then(function () { return { W: W, H: H, y0: y0, yW: yW, blade: blade }; });
     })
-    // 4. El logo queda cortado (las mitades se desplazan) + pequeño golpe
+    // 5. El logo queda cortado (las mitades se desplazan) + pequeño golpe
     .then(function (g) {
       var a1 = discTop.animate([{ transform: "translate(0,0)" }, { transform: "translate(17px,-15px)", offset: .55 }, { transform: "translate(13px,-11px)" }],
         { duration: 280, easing: "ease-out", fill: "forwards" });
@@ -136,7 +171,7 @@
         return wait(380);
       }).then(function () { return g; });
     })
-    // 5. La pantalla se parte por el corte y deja entrar a la app
+    // 6. La pantalla se parte por el corte y deja entrar a la app
     .then(function (g) {
       overlay.style.pointerEvents = "none";
       var top = stage.cloneNode(true), bot = stage.cloneNode(true);
