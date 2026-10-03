@@ -3,19 +3,23 @@ import hmac
 import os
 import secrets
 import time
+import unicodedata
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import case, update
+from sqlalchemy import delete as sql_delete
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, select
 
-from . import storage
+from . import auth, storage
 from .database import get_session, init_db
-from .models import Song, SongRead
+from .models import Artist, ArtistRead, Like, Song, SongRead
 from .streaming import range_response
 
 ALLOWED_TYPES = {
@@ -66,38 +70,51 @@ app.add_middleware(
 
 # ---------------------------------------------------------------- administrador
 
+# Secreto con el que se firman los permisos temporales para escuchar canciones privadas.
+SESSION_SECRET = os.getenv("SESSION_SECRET") or ADMIN_KEY or os.getenv("SUPABASE_SERVICE_KEY", "")
+ADMIN_CONFIGURED = bool(ADMIN_KEY or auth.ADMIN_EMAILS)
+
+
 def is_admin(key: str | None) -> bool:
     """True solo si hay ADMIN_KEY configurada y la clave coincide."""
     return bool(ADMIN_KEY) and secrets.compare_digest((key or "").encode(), ADMIN_KEY.encode())
 
 
-def require_admin(x_admin_key: str | None = Header(default=None)) -> None:
-    """Si ADMIN_KEY está definida, subir y borrar canciones exigen la cabecera X-Admin-Key; si no, no hay restricción."""
-    if ADMIN_KEY and not is_admin(x_admin_key):
-        raise HTTPException(401, "Clave de administrador incorrecta")
+async def admin_flag(
+    x_admin_key: str | None = Header(default=None),
+    user: auth.AuthUser | None = Depends(auth.current_user),
+) -> bool:
+    """Administrador: quien envía la clave ADMIN_KEY, o una cuenta con el correo confirmado y en ADMIN_EMAILS."""
+    return is_admin(x_admin_key) or bool(user and user.is_admin)
+
+
+def require_admin(admin: bool = Depends(admin_flag)) -> None:
+    """Si hay administrador configurado (clave o correos), subir, editar y borrar lo exigen; si no, no hay restricción."""
+    if ADMIN_CONFIGURED and not admin:
+        raise HTTPException(401, "Solo el administrador puede hacer esto")
 
 
 def make_session_token() -> tuple[str, int]:
     """Permiso temporal para escuchar privadas. El <audio> no puede enviar cabeceras, por eso va en la URL."""
     expires = int(time.time()) + SESSION_SECONDS
-    sig = hmac.new(ADMIN_KEY.encode(), f"private:{expires}".encode(), hashlib.sha256).hexdigest()
+    sig = hmac.new(SESSION_SECRET.encode(), f"private:{expires}".encode(), hashlib.sha256).hexdigest()
     return f"{expires}.{sig}", expires
 
 
 def valid_session_token(token: str | None) -> bool:
-    if not ADMIN_KEY or not token or "." not in token:
+    if not SESSION_SECRET or not token or "." not in token:
         return False
     expires_s, _, sig = token.partition(".")
     if not expires_s.isdigit() or int(expires_s) < time.time():
         return False
-    expected = hmac.new(ADMIN_KEY.encode(), f"private:{expires_s}".encode(), hashlib.sha256).hexdigest()
+    expected = hmac.new(SESSION_SECRET.encode(), f"private:{expires_s}".encode(), hashlib.sha256).hexdigest()
     return secrets.compare_digest(sig.encode(), expected.encode())
 
 
 @app.get("/admin/session")
-def admin_session(x_admin_key: str | None = Header(default=None)):
-    """Comprueba la clave y entrega el permiso temporal para reproducir canciones privadas."""
-    if not is_admin(x_admin_key):
+def admin_session(admin: bool = Depends(admin_flag)):
+    """Comprueba que es el administrador (clave o cuenta) y entrega el permiso temporal para escuchar privadas."""
+    if not admin or not SESSION_SECRET:
         raise HTTPException(401, "Clave de administrador incorrecta")
     token, expires = make_session_token()
     return {"token": token, "expires": expires}
@@ -127,8 +144,8 @@ async def upload_song(
     cover: UploadFile | None = File(None),
     session: Session = Depends(get_session),
 ):
-    if is_private and not ADMIN_KEY:
-        raise HTTPException(400, "Para subir canciones privadas hay que configurar ADMIN_KEY en el servidor")
+    if is_private and not ADMIN_CONFIGURED:
+        raise HTTPException(400, "Para subir canciones privadas hay que configurar ADMIN_KEY o ADMIN_EMAILS en el servidor")
     ext = Path(file.filename or "").suffix.lower()
     if ext not in ALLOWED_TYPES:
         raise HTTPException(400, f"Formato no permitido. Usa: {', '.join(ALLOWED_TYPES)}")
@@ -209,10 +226,10 @@ async def edit_song(
 
 
 @app.get("/songs", response_model=list[SongRead])
-def list_songs(x_admin_key: str | None = Header(default=None), session: Session = Depends(get_session)):
-    # Las privadas solo se entregan con la clave de administrador; con una clave mala se ven solo las públicas.
+def list_songs(admin: bool = Depends(admin_flag), session: Session = Depends(get_session)):
+    # Las privadas solo se entregan al administrador; con una clave o sesión inválida se ven solo las públicas.
     query = select(Song).order_by(Song.created_at.desc())
-    if not is_admin(x_admin_key):
+    if not admin:
         query = query.where(Song.is_private == False)  # noqa: E712 (SQLAlchemy necesita el ==)
     return session.exec(query).all()
 
@@ -232,6 +249,7 @@ async def delete_song(song_id: int, session: Session = Depends(get_session)):
             await storage.delete(song.cover_path, private=song.is_private)
         except Exception:
             pass  # una portada huérfana no impide borrar la canción
+    session.exec(sql_delete(Like).where(Like.song_id == song_id))  # sus "me gusta" se van con ella
     session.delete(song)
     session.commit()
 
@@ -244,44 +262,76 @@ def _only_visible(statement, admin: bool):
 @app.post("/songs/{song_id}/play")
 def count_play(
     song_id: int,
-    x_admin_key: str | None = Header(default=None),
+    admin: bool = Depends(admin_flag),
     session: Session = Depends(get_session),
 ):
     """Suma una reproducción (el frontend la avisa tras escuchar unos segundos)."""
     # UPDATE atómico: dos oyentes a la vez no pisan el contador del otro.
-    statement = _only_visible(update(Song).where(Song.id == song_id).values(plays=Song.plays + 1), is_admin(x_admin_key))
+    statement = _only_visible(update(Song).where(Song.id == song_id).values(plays=Song.plays + 1), admin)
     if session.exec(statement).rowcount == 0:
         raise HTTPException(404, "Canción no encontrada")
     session.commit()
     return {"plays": session.exec(select(Song.plays).where(Song.id == song_id)).one()}
 
 
-def _change_likes(session: Session, song_id: int, delta: int, admin: bool) -> dict:
-    # UPDATE atómico; al quitar un "me gusta" el contador nunca baja de 0.
-    new_value = Song.likes + 1 if delta > 0 else case((Song.likes > 0, Song.likes - 1), else_=0)
-    statement = _only_visible(update(Song).where(Song.id == song_id).values(likes=new_value), admin)
-    if session.exec(statement).rowcount == 0:
+def _set_like(session: Session, song_id: int, user: auth.AuthUser | None, admin: bool, add: bool) -> dict:
+    """Cada persona puede dar un solo "me gusta" por canción. Quitarlo resta uno, sin bajar de 0."""
+    if user is None:
+        raise HTTPException(401, "Inicia sesión para dar me gusta")
+    visible = select(Song.id).where(Song.id == song_id)
+    if not admin:
+        visible = visible.where(Song.is_private == False)  # noqa: E712
+    if session.exec(visible).first() is None:
         raise HTTPException(404, "Canción no encontrada")
-    session.commit()
+    existing = session.get(Like, (user.id, song_id))
+    if add and existing is None:
+        try:
+            session.add(Like(user_id=user.id, song_id=song_id))
+            session.exec(update(Song).where(Song.id == song_id).values(likes=Song.likes + 1))
+            session.commit()
+        except IntegrityError:
+            session.rollback()  # el mismo "me gusta" llegó dos veces a la vez: ya contaba
+    elif not add and existing is not None:
+        session.delete(existing)
+        session.exec(update(Song).where(Song.id == song_id).values(likes=case((Song.likes > 0, Song.likes - 1), else_=0)))
+        session.commit()
     return {"likes": session.exec(select(Song.likes).where(Song.id == song_id)).one()}
 
 
 @app.post("/songs/{song_id}/like")
 def like_song(
     song_id: int,
-    x_admin_key: str | None = Header(default=None),
+    user: auth.AuthUser | None = Depends(auth.current_user),
+    admin: bool = Depends(admin_flag),
     session: Session = Depends(get_session),
 ):
-    return _change_likes(session, song_id, +1, is_admin(x_admin_key))
+    return _set_like(session, song_id, user, admin, add=True)
 
 
 @app.delete("/songs/{song_id}/like")
 def unlike_song(
     song_id: int,
-    x_admin_key: str | None = Header(default=None),
+    user: auth.AuthUser | None = Depends(auth.current_user),
+    admin: bool = Depends(admin_flag),
     session: Session = Depends(get_session),
 ):
-    return _change_likes(session, song_id, -1, is_admin(x_admin_key))
+    return _set_like(session, song_id, user, admin, add=False)
+
+
+@app.get("/me")
+def me(user: auth.AuthUser | None = Depends(auth.current_user)):
+    """Quién es la persona con sesión iniciada y qué puede hacer."""
+    if user is None:
+        raise HTTPException(401, "Sin sesión")
+    return {"id": user.id, "email": user.email, "role": user.role, "is_admin": user.is_admin}
+
+
+@app.get("/me/likes", response_model=list[int])
+def my_likes(user: auth.AuthUser | None = Depends(auth.current_user), session: Session = Depends(get_session)):
+    """Ids de las canciones a las que esta persona dio me gusta."""
+    if user is None:
+        raise HTTPException(401, "Sin sesión")
+    return session.exec(select(Like.song_id).where(Like.user_id == user.id)).all()
 
 
 @app.get("/songs/{song_id}/stream")
@@ -327,4 +377,85 @@ async def song_cover(song_id: int, t: str | None = Query(default=None), session:
     path = storage.local_path(song.cover_path, private=song.is_private)
     if not path.is_file():
         raise HTTPException(404, "Portada no encontrada en disco")
+    return FileResponse(path, media_type=COVER_TYPES.get(path.suffix.lower(), "image/jpeg"))
+
+
+# ----------------------------------------------------------------------- artistas
+
+def artist_key(name: str) -> str:
+    """Misma normalización que el frontend: sin tildes, en minúsculas y con espacios simples."""
+    plain = "".join(c for c in unicodedata.normalize("NFD", name) if not unicodedata.combining(c))
+    return " ".join(plain.lower().split())
+
+
+@app.get("/artists", response_model=list[ArtistRead])
+def list_artists(session: Session = Depends(get_session)):
+    return session.exec(select(Artist)).all()
+
+
+@app.put("/artists", response_model=ArtistRead, dependencies=[Depends(require_admin)])
+async def save_artist(
+    name: str = Form(..., min_length=1, max_length=200),
+    bio: str = Form("", max_length=2000),
+    remove_image: bool = Form(False),
+    image: UploadFile | None = File(None),
+    session: Session = Depends(get_session),
+):
+    """Crea o actualiza el perfil de un artista: biografía y foto (opcional)."""
+    name = " ".join(name.split())  # espacios simples, sin los de los extremos
+    key = artist_key(name)
+    if not key:
+        raise HTTPException(400, "Falta el nombre del artista")
+    artist = session.exec(select(Artist).where(Artist.key == key)).first()
+    image_name, image_data, image_ext = await _read_cover(image)
+    old_image = artist.image_path if artist else None
+    if artist is None:
+        artist = Artist(key=key, name=name)
+    if image_name:
+        try:
+            await storage.save(image_name, image_data, COVER_TYPES[image_ext], private=False)
+        except Exception as exc:
+            raise HTTPException(502, f"No se pudo guardar la foto: {exc}")
+        artist.image_path = image_name
+    elif remove_image:
+        artist.image_path = None
+    artist.name = name
+    artist.bio = bio.replace("\r\n", "\n").strip() or None
+    artist.updated_at = datetime.now(timezone.utc)
+    session.add(artist)
+    session.commit()
+    session.refresh(artist)
+    if old_image and old_image != artist.image_path:
+        try:
+            await storage.delete(old_image, private=False)
+        except Exception:
+            pass  # una foto vieja que no se pudo borrar no invalida el cambio
+    return artist
+
+
+@app.delete("/artists", status_code=204, dependencies=[Depends(require_admin)])
+async def delete_artist(name: str = Query(...), session: Session = Depends(get_session)):
+    """Borra el perfil (biografía y foto). Las canciones no se tocan: el artista sigue existiendo por ellas."""
+    artist = session.exec(select(Artist).where(Artist.key == artist_key(name))).first()
+    if artist is None:
+        raise HTTPException(404, "Perfil no encontrado")
+    if artist.image_path:
+        try:
+            await storage.delete(artist.image_path, private=False)
+        except Exception as exc:
+            raise HTTPException(502, f"No se pudo borrar la foto: {exc}")
+    session.delete(artist)
+    session.commit()
+
+
+@app.get("/artists/image")
+async def artist_image(name: str = Query(...), session: Session = Depends(get_session)):
+    artist = session.exec(select(Artist).where(Artist.key == artist_key(name))).first()
+    if artist is None or not artist.image_path:
+        raise HTTPException(404, "Foto no encontrada")
+    if storage.USE_SUPABASE:
+        return RedirectResponse(storage.public_url(artist.image_path), status_code=302, headers={"Cache-Control": "public, max-age=86400"})
+    path = storage.local_path(artist.image_path)
+    if not path.is_file():
+        raise HTTPException(404, "Foto no encontrada en disco")
     return FileResponse(path, media_type=COVER_TYPES.get(path.suffix.lower(), "image/jpeg"))

@@ -22,6 +22,41 @@ class Song(SQLModel, table=True):
         return bool(self.cover_path)
 
 
+class Like(SQLModel, table=True):
+    """Un "me gusta" de una persona (user_id viene de Supabase Auth) a una canción: solo uno por par."""
+
+    user_id: str = Field(primary_key=True)
+    song_id: int = Field(primary_key=True, index=True)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class Artist(SQLModel, table=True):
+    """Datos extra de un artista (biografía y foto). Sus canciones se agrupan por el nombre que traen."""
+
+    id: int | None = Field(default=None, primary_key=True)
+    key: str = Field(index=True, unique=True)  # nombre sin tildes ni mayúsculas: "benjita de la 22"
+    name: str
+    bio: str | None = None
+    image_path: str | None = None
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def has_image(self) -> bool:
+        return bool(self.image_path)
+
+    @property
+    def version(self) -> int:
+        """Cambia al editar el perfil; va en la URL de la foto para que el navegador no use una vieja."""
+        return int(self.updated_at.timestamp())
+
+
+class ArtistRead(SQLModel):
+    name: str
+    bio: str | None = None
+    has_image: bool = False
+    version: int = 0
+
+
 class SongRead(SQLModel):
     """Lo que devuelve la API (no expone rutas internas del disco)."""
 
