@@ -974,21 +974,6 @@ html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar 
   .tab.active .ic { color: var(--accent); }
 }
 
-/* ---------- Pantalla de carga ---------- */
-#splash {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  display: grid;
-  place-items: center;
-  background: var(--bg);
-  transition: opacity 0.35s ease, visibility 0.35s;
-}
-#splash.hide { opacity: 0; visibility: hidden; }
-.splash-note { transform-box: fill-box; transform-origin: center; animation: splash-spin 1.1s linear infinite; }
-@keyframes splash-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .splash-note { animation-duration: 3s; } }
-
 /* Sin canción cargada no se muestra la barra del reproductor. */
 .no-track .player { display: none; }
 .no-track .app { grid-template-rows: 1fr; }

@@ -5,6 +5,8 @@
  * Opciones: minDuration (ms, default 1000), oncePerSession (bool, default false), onDone (fn).
  * Movimiento: el disco gira mientras la app carga; cuando está por terminar frena con la K derecha,
  * el corte cruza el logo y la pantalla se parte para dejar entrar a la app.
+ * Si el tag script lleva data-wait="app", el corte espera a que la app llame a KorteIntro.ready() (ya cargó sus datos),
+ * con un tope de 25 s; mientras tanto el disco sigue girando. Así la app entra ya cargada.
  * Al terminar dispara el evento "korte:intro-done" en window.
  */
 (function () {
@@ -50,6 +52,13 @@
     ".ki-blade{position:absolute;left:0;height:3px;background:" + AC + ";box-shadow:0 0 10px " + AC + ",0 0 28px rgba(255,77,31,.55);transform-origin:0 50%;pointer-events:none}";
 
   var running = false;
+  var appReadyResolve;
+  var appReadyPromise = new Promise(function (r) { appReadyResolve = r; });
+  // Con waitForApp, espera el aviso KorteIntro.ready() (tope: waitMax ms, por si la app nunca avisa).
+  function waitForApp(opts) {
+    if (!opts.waitForApp) return Promise.resolve();
+    return Promise.race([appReadyPromise, wait(opts.waitMax != null ? opts.waitMax : 25000)]);
+  }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   function pageLoaded(maxMs) {
     if (document.readyState === "complete") return Promise.resolve();
@@ -99,7 +108,8 @@
       logo.style.opacity = "1";
       discTop.style.transform = "translate(13px,-11px)";
       wordTop.style.transform = "translate(12px,-4px)";
-      pageLoaded(6000).then(function () { return wait(Math.max(0, minDuration - (Date.now() - start))); })
+      pageLoaded(6000).then(function () { return waitForApp(opts); })
+        .then(function () { return wait(Math.max(0, minDuration - (Date.now() - start))); })
         .then(function () { return overlay.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: "forwards" }).finished; })
         .then(function () { finish(overlay, prevOverflow, opts); });
       return;
@@ -118,6 +128,7 @@
       { duration: 550, easing: "cubic-bezier(.2,.8,.2,1)", fill: "forwards" }).finished
     // 2. Espera a que cargue la app (con tope de 6 s) y al tiempo mínimo
     .then(function () { return pageLoaded(6000); })
+    .then(function () { return waitForApp(opts); })
     .then(function () { return wait(Math.max(0, minDuration - (Date.now() - start))); })
     // 3. Está por cargar: el disco frena de forma continua y se detiene con la K derecha
     .then(function () {
@@ -194,7 +205,7 @@
     .catch(function () { finish(overlay, prevOverflow, opts); });
   }
 
-  window.KorteIntro = { play: play };
+  window.KorteIntro = { play: play, ready: function () { appReadyResolve(); } };
   var me = document.currentScript;
-  if (!me || me.getAttribute("data-auto") !== "false") play();
+  if (!me || me.getAttribute("data-auto") !== "false") play({ waitForApp: !!me && me.getAttribute("data-wait") === "app" });
 })();

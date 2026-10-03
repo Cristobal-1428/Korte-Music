@@ -12,22 +12,7 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="no-track">
-  <script src="korte-intro.js"></script>
-  <div id="splash" role="status" aria-label="Cargando">
-    <svg viewBox="240 120 520 520" width="143" height="143" aria-hidden="true">
-      <defs>
-        <clipPath id="sp-dt"><polygon points="0,0 1000,0 1000,198 0,562"/></clipPath>
-        <clipPath id="sp-db"><polygon points="0,562 1000,198 1000,1000 0,1000"/></clipPath>
-      </defs>
-      <g class="splash-note">
-        <!-- Círculo invisible: deja el centro de la caja exactamente en el centro del disco, para que gire sin bambolearse. -->
-        <circle cx="487" cy="391" r="232" fill="none"/>
-        <g clip-path="url(#sp-db)"><circle cx="500" cy="380" r="232" fill="#F2EDE4"/><circle cx="500" cy="380" r="212" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="196" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="180" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="164" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="148" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="132" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="116" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/></g>
-        <g transform="translate(13,-11)"><g clip-path="url(#sp-dt)"><circle cx="500" cy="380" r="232" fill="#F2EDE4"/><circle cx="500" cy="380" r="212" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="196" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="180" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="164" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="148" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="132" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="116" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/></g></g>
-      </g>
-      <circle cx="500" cy="380" r="88" fill="#FF4D1F"/><path d="M460.896 417.44V339.44H484.92V398.408L478.68 393.312L520.176 339.44H545.552L482.84000000000003 417.44ZM498.232 380.936 516.0160000000001 366.584 546.696 417.44H519.24Z" fill="#0E0D0C"/>
-    </svg>
-  </div>
+  <script src="korte-intro.js" data-wait="app"></script>
     <!-- Íconos propios: los emojis (⏸ 🔀 🔁) cada teléfono los dibuja distinto, a veces en naranja. -->
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></symbol>

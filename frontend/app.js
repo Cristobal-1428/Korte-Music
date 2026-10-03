@@ -563,8 +563,7 @@ function showHome() {
 
   // Cabecera: saludo y controles del visualizador de fondo.
   const hello = el("div", "home-hello");
-  const helloStats = el("p", "", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"} en tu biblioteca`);
-  hello.append(el("h1", "", greeting()), helloStats);
+  hello.append(el("h1", "", greeting()));
   const modes = el("div", "viz-modes");
   const palettes = el("div", "viz-palettes");
   fillVizControls(modes, palettes);
@@ -738,7 +737,6 @@ function showMobileHome(list) {
   profile.addEventListener("click", () => (location.hash = "#/account"));
   const top = el("div", "m-top");
   top.append(profile, logo);
-  const stats = el("p", "m-stats", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"}`);
   const title = el("h1", "m-welcome");
   title.append("A darle el ", el("span", "m-korte", "Korte"));
   const playAll = el("button", "big-play", "▶ Reproducir todo");
@@ -749,7 +747,7 @@ function showMobileHome(list) {
   shuffle.addEventListener("click", () => playSong(list[Math.floor(Math.random() * list.length)].id));
   const actions = el("div", "actions");
   actions.append(playAll, shuffle);
-  hero.append(top, title, stats, actions);
+  hero.append(top, title, actions);
 
   view.replaceChildren(hero);
 
@@ -979,7 +977,7 @@ function showSearch() {
   view.replaceChildren(box, results);
   main.scrollTop = 0;
   render();
-  input.focus({ preventScroll: true });
+  // Sin input.focus(): el teclado solo se abre cuando la persona toca la caja de búsqueda.
 }
 
 /* ---------- Editar el perfil del artista (solo con la clave) ---------- */
@@ -2258,6 +2256,23 @@ form.addEventListener("submit", async (event) => {
 
 /* ---------- Inicio ---------- */
 
+// Descarga las portadas y fotos que se ven al abrir la app (con un tope de 3 s) para que ya estén cuando entre.
+function preloadFirstImages() {
+  const urls = [
+    ...songs.filter((s) => s.has_cover).slice(0, 12).map((s) => coverUrl(s)),
+    ...[...artists.values()].filter((a) => a.has_image).slice(0, 6).map((a) => artistImageUrl(a)),
+  ];
+  const loads = urls.map(
+    (url) =>
+      new Promise((resolve) => {
+        const img = new Image();
+        img.onload = img.onerror = resolve;
+        img.src = url;
+      }),
+  );
+  return Promise.race([Promise.all(loads), new Promise((resolve) => setTimeout(resolve, 3000))]);
+}
+
 let lastUid = null;
 Auth.ready
   .then(() => {
@@ -2283,4 +2298,7 @@ Auth.ready
     statusEl.className = "error";
     statusEl.textContent = `${e.message}. ¿Está corriendo la API en ${API_URL}?`;
   })
-  .finally(() => document.getElementById("splash")?.classList.add("hide"));
+  .finally(async () => {
+    await preloadFirstImages();
+    window.KorteIntro?.ready?.(); // avisa al intro: la app ya está cargada, puede cortarse y dejarla entrar
+  });
