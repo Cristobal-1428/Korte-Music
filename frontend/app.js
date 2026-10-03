@@ -368,7 +368,7 @@ function visibleSongs() {
 
 // Marca la sección activa en el menú lateral y en la barra de abajo.
 function setNav(active) {
-  for (const section of ["home", "search", "private", "artists", "account"]) {
+  for (const section of ["home", "search", "private", "artists", "account", "library"]) {
     for (const prefix of ["nav-", "tab-"]) $(prefix + section)?.classList.toggle("active", section === active);
   }
 }
@@ -388,7 +388,7 @@ function route() {
   }
   const hash = location.hash;
   setNav(
-    hash === "#/private" ? "private" : hash === "#/search" ? "search" : hash === "#/account" ? "account" : hash.startsWith("#/artist") ? "artists" : hash.startsWith("#/song/") && !isMobile.matches ? null : "home",
+    hash === "#/private" ? "private" : hash === "#/search" ? "search" : hash === "#/account" ? "account" : hash === "#/library" ? "library" : hash.startsWith("#/artist") ? "artists" : hash.startsWith("#/song/") && !isMobile.matches ? null : "home",
   );
   if (hash === "#/private") return showPrivate();
   const artistMatch = hash.match(/^#\/artist\/(.+)$/);
@@ -396,6 +396,7 @@ function route() {
   if (hash === "#/artists") return showArtists();
   if (hash === "#/search") return showSearch();
   if (hash === "#/account") return showAccount();
+  if (hash === "#/library") return showLibrary();
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
   if (song && isMobile.matches) {
@@ -562,10 +563,7 @@ function showHome() {
 
   // Cabecera: saludo y controles del visualizador de fondo.
   const hello = el("div", "home-hello");
-  const helloStats = el("p", "");
-  const helloPlays = el("span", "");
-  helloPlays.dataset.playsTotal = "";
-  helloStats.append(`${songs.length} ${songs.length === 1 ? "canción" : "canciones"} en tu biblioteca · `, helloPlays);
+  const helloStats = el("p", "", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"} en tu biblioteca`);
   hello.append(el("h1", "", greeting()), helloStats);
   const modes = el("div", "viz-modes");
   const palettes = el("div", "viz-palettes");
@@ -673,8 +671,8 @@ function refreshPlays() {
   syncNowPlaying();
 }
 
-// Fila compacta: toca para reproducir; › abre el detalle y ⋮ abre editar / eliminar.
-function makeRow(song, withDetail = true, queue = null) {
+// Fila compacta: toca para reproducir; ⋮ (solo el administrador) abre editar / eliminar.
+function makeRow(song, queue = null) {
   const cover = el("div", "m-cover", initial(song));
   cover.style.cssText = coverStyle(song);
   const meta = el("div", "m-meta");
@@ -686,14 +684,9 @@ function makeRow(song, withDetail = true, queue = null) {
   sub.append(plays);
   meta.append(el("span", "m-title", song.title), sub);
 
-  const detail = el("button", "m-btn", "›");
-  detail.type = "button";
-  detail.setAttribute("aria-label", `Ver detalle de ${song.title}`);
-  detail.addEventListener("click", (e) => { e.stopPropagation(); openSong(song.id); });
-
   const row = el("div", "m-row");
   row.dataset.id = song.id;
-  row.append(cover, meta, ...(withDetail ? [detail] : []), menuButton(song, "m-btn m-del"));
+  row.append(cover, meta, menuButton(song, "m-btn m-del"));
   row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id, queue)));
   return row;
 }
@@ -716,7 +709,7 @@ function showMobileHome(list) {
   // Buscando: solo los resultados, sin saludo ni carrusel.
   if (search.value.trim()) {
     const found = el("div", "m-rows");
-    found.append(...list.map(makeRow));
+    found.append(...list.map((s) => makeRow(s)));
     view.replaceChildren(el("h2", "m-section", list.length === 1 ? "1 resultado" : `${list.length} resultados`), found);
     main.scrollTop = 0;
     refreshPlays();
@@ -732,12 +725,22 @@ function showMobileHome(list) {
   mark.alt = "";
   const logo = el("div", "m-logo");
   logo.append(mark, "Korte ", el("span", "m-korte", "Music"));
-  const stats = el("p", "m-stats");
-  const total = el("span", "");
-  total.dataset.playsTotal = "";
-  stats.append(`${songs.length} ${songs.length === 1 ? "canción" : "canciones"} · `, total);
+  // Perfil a la izquierda (abre la cuenta): tu inicial si hay sesión, un muñeco si no.
+  const profile = el("button", "m-profile");
+  profile.type = "button";
+  profile.setAttribute("aria-label", me ? `Tu cuenta (${me.email})` : "Iniciar sesión");
+  if (me) {
+    profile.textContent = (me.email || "?").charAt(0).toUpperCase();
+    profile.classList.add("in");
+  } else {
+    profile.innerHTML = '<svg class="ic"><use href="#i-user"/></svg>';
+  }
+  profile.addEventListener("click", () => (location.hash = "#/account"));
+  const top = el("div", "m-top");
+  top.append(profile, logo);
+  const stats = el("p", "m-stats", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"}`);
   const title = el("h1", "m-welcome");
-  title.append("Bienvenido", el("br"), "A darle el ", el("span", "m-korte", "korte"));
+  title.append("A darle el ", el("span", "m-korte", "Korte"));
   const playAll = el("button", "big-play", "▶ Reproducir todo");
   const shuffle = el("button", "viz-chip");
   shuffle.innerHTML = '<svg class="ic ic-sm"><use href="#i-shuffle"/></svg> Aleatorio';
@@ -746,7 +749,7 @@ function showMobileHome(list) {
   shuffle.addEventListener("click", () => playSong(list[Math.floor(Math.random() * list.length)].id));
   const actions = el("div", "actions");
   actions.append(playAll, shuffle);
-  hero.append(logo, title, stats, actions);
+  hero.append(top, title, stats, actions);
 
   view.replaceChildren(hero);
 
@@ -758,7 +761,7 @@ function showMobileHome(list) {
   view.append(el("h2", "m-section", popular.length ? "Lo más escuchado" : "Recién subidas"), carousel);
 
   const rows = el("div", "m-rows");
-  rows.append(...list.map(makeRow));
+  rows.append(...list.map((s) => makeRow(s)));
   view.append(el("h2", "m-section", "Tus canciones"), rows);
 
   main.scrollTop = 0;
@@ -828,7 +831,7 @@ function showArtists() {
 
 // Fila numerada de "Populares": número, portada, título y reproducciones.
 function makeRankRow(song, rank, queue) {
-  const row = makeRow(song, false, queue);
+  const row = makeRow(song, queue);
   row.prepend(el("span", "m-rank", String(rank)));
   return row;
 }
@@ -912,7 +915,7 @@ function showArtist(name) {
   }
   if (list.length) {
     const rows = el("div", "m-rows");
-    rows.append(...list.map((s) => makeRow(s, false, ids)));
+    rows.append(...list.map((s) => makeRow(s, ids)));
     nodes.push(el("h2", "m-section", "Canciones"), rows);
   } else {
     nodes.push(el("p", "empty", "Todavía no hay canciones públicas de este artista."));
@@ -963,7 +966,7 @@ function showSearch() {
       if (foundSongs.length) {
         const ids = foundSongs.map((s) => s.id);
         const rows = el("div", "m-rows");
-        rows.append(...foundSongs.map((s) => makeRow(s, false, ids)));
+        rows.append(...foundSongs.map((s) => makeRow(s, ids)));
         results.append(el("h2", "m-section", "Canciones"), rows);
       }
       if (!foundArtists.length && !foundSongs.length) results.append(el("p", "empty", `Sin resultados para «${input.value.trim()}».`));
@@ -1212,16 +1215,12 @@ function signedInContent() {
     nodes.push(actions);
   }
 
-  const mine = [...songs, ...privateSongs].filter((s) => likedIds.has(s.id));
-  nodes.push(el("h2", "m-section", `Tus me gusta (${mine.length})`));
-  if (mine.length) {
-    const ids = mine.map((s) => s.id);
-    const rows = el("div", "m-rows");
-    rows.append(...mine.map((s) => makeRow(s, false, ids)));
-    nodes.push(rows);
-  } else {
-    nodes.push(el("p", "empty", "Aún no has dado me gusta. Toca el corazón en el reproductor."));
-  }
+  const likes = el("button", "viz-chip", `Tus me gusta (${[...songs, ...privateSongs].filter((s) => likedIds.has(s.id)).length})`);
+  likes.type = "button";
+  likes.addEventListener("click", () => (location.hash = "#/library"));
+  const likesRow = el("div", "actions");
+  likesRow.append(likes);
+  nodes.push(likesRow);
 
   const out = el("button", "viz-chip", "Cerrar sesión");
   out.type = "button";
@@ -1231,6 +1230,40 @@ function signedInContent() {
   nodes.push(outRow);
   refreshPlays();
   return nodes;
+}
+
+/* ---------- Biblioteca: las canciones a las que diste me gusta ---------- */
+
+function showLibrary() {
+  leaveStage();
+  main.style.setProperty("--tint", "hsl(16 40% 16%)");
+  const box = el("section", "library-page");
+  box.append(el("h1", "page-title", "Tu biblioteca"));
+  if (!me) {
+    box.append(el("p", "empty", Auth.enabled ? "Inicia sesión para guardar aquí las canciones que te gustan." : "Las cuentas todavía no están activadas."));
+    if (Auth.enabled) {
+      const login = el("button", "big-play", "Iniciar sesión");
+      login.type = "button";
+      login.addEventListener("click", () => (location.hash = "#/account"));
+      box.append(login);
+    }
+  } else {
+    const mine = [...songs, ...privateSongs].filter((s) => likedIds.has(s.id));
+    box.append(el("h2", "m-section", `Tus me gusta (${mine.length})`));
+    if (mine.length) {
+      const ids = mine.map((s) => s.id);
+      const rows = el("div", "m-rows");
+      rows.append(...mine.map((s) => makeRow(s, ids)));
+      box.append(rows);
+    } else {
+      box.append(el("p", "empty", "Aún no has dado me gusta. Toca el corazón en el reproductor."));
+    }
+  }
+  view.replaceChildren(box);
+  main.scrollTop = 0;
+  refreshPlays();
+  markActive();
+  updatePlayState();
 }
 
 /* ---------- Sección privada ---------- */
@@ -1321,7 +1354,7 @@ function privateList() {
     box.append(el("p", "empty", "Aún no hay canciones privadas."));
   } else {
     const rows = el("div", "m-rows");
-    rows.append(...privateSongs.map((s) => makeRow(s, false)));
+    rows.append(...privateSongs.map((s) => makeRow(s)));
     box.append(rows);
   }
   return box;
@@ -1912,7 +1945,8 @@ $("npf-play").addEventListener("click", togglePlay);
 $("npf-prev").addEventListener("click", () => step(-1));
 $("npf-next").addEventListener("click", () => step(1));
 
-// Deslizar a los lados en la pantalla de reproducción cambia de canción (izquierda: siguiente, derecha: anterior).
+// Deslizar a los lados en la pantalla de reproducción cambia de canción (izquierda: siguiente, derecha: anterior);
+// deslizar hacia abajo la cierra.
 let swipe = null;
 npf.addEventListener("pointerdown", (e) => {
   swipe = e.target.closest("button, canvas, input") ? null : { x: e.clientX, y: e.clientY };
@@ -1923,6 +1957,8 @@ npf.addEventListener("pointerup", (e) => {
   const dx = e.clientX - swipe.x;
   const dy = e.clientY - swipe.y;
   swipe = null;
+  // Hacia abajo: lo mismo que la flecha de arriba a la izquierda (cerrar la pantalla).
+  if (dy > 90 && dy > Math.abs(dx) * 1.5) return closeNowPlaying();
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   step(dx < 0 ? 1 : -1);
   syncNowPlaying();
