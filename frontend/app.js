@@ -1043,11 +1043,21 @@ function accountIcon() {
   return icon;
 }
 
+// Flecha para volver al inicio desde páginas que no tienen pestaña propia (como la cuenta).
+function backButton() {
+  const back = el("button", "page-back");
+  back.type = "button";
+  back.setAttribute("aria-label", "Volver al inicio");
+  back.innerHTML = '<svg class="ic"><use href="#i-back"/></svg>';
+  back.addEventListener("click", () => (location.hash = "#/"));
+  return back;
+}
+
 function showAccount() {
   leaveStage();
   main.style.setProperty("--tint", "hsl(280 30% 17%)");
   const box = el("section", "account");
-  const paint = () => box.replaceChildren(...accountContent(paint));
+  const paint = () => box.replaceChildren(backButton(), ...accountContent(paint));
   paint();
   view.replaceChildren(box);
   main.scrollTop = 0;
@@ -1929,7 +1939,7 @@ async function shareSong() {
 }
 
 document.querySelector(".np").addEventListener("click", openNowPlaying);
-$("npf-close").addEventListener("click", closeNowPlaying);
+$("npf-close").addEventListener("click", () => slideAway(0));
 $("npf-like").addEventListener("click", toggleLike);
 $("npf-share").addEventListener("click", shareSong);
 $("npf-artist").addEventListener("click", () => {
@@ -1945,20 +1955,95 @@ $("npf-play").addEventListener("click", togglePlay);
 $("npf-prev").addEventListener("click", () => step(-1));
 $("npf-next").addEventListener("click", () => step(1));
 
-// Deslizar a los lados en la pantalla de reproducción cambia de canción (izquierda: siguiente, derecha: anterior);
-// deslizar hacia abajo la cierra.
+// Gestos en la pantalla de reproducción:
+//  - a los lados cambia de canción (izquierda: siguiente, derecha: anterior);
+//  - hacia abajo la pantalla sigue al dedo; al soltar se cierra (como la flecha ⌄) si bajó lo suficiente
+//    o iba rápido, y si no vuelve a su lugar.
+const DRAG_CLOSE_PX = 140; // cuánto hay que bajarla para que se cierre
+const DRAG_CLOSE_SPEED = 0.7; // o una sacudida rápida (px por ms), si bajó al menos DRAG_MIN_PX
+const DRAG_MIN_PX = 40;
 let swipe = null;
+
+const dragOffset = () => new DOMMatrix(getComputedStyle(npf).transform).m42;
+
+function resetDrag() {
+  npf.style.transform = "";
+  npf.classList.remove("dragging");
+}
+
+// La pantalla termina de bajar y se cierra.
+function slideAway(from = dragOffset()) {
+  if (npf.hidden) return;
+  if (reducedMotion) {
+    resetDrag();
+    return closeNowPlaying();
+  }
+  npf.classList.add("dragging");
+  npf.style.transform = "";
+  const anim = npf.animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(100%)" }], {
+    duration: 240,
+    easing: "cubic-bezier(.4,0,.8,.6)",
+    fill: "forwards",
+  });
+  anim.finished.then(
+    () => {
+      anim.cancel();
+      resetDrag();
+      closeNowPlaying(); // se oculta en el mismo instante: no se ve ningún parpadeo
+    },
+    resetDrag,
+  );
+}
+
+// No bajó lo suficiente: vuelve a su lugar.
+function springBack() {
+  const from = dragOffset();
+  npf.style.transform = "";
+  const anim = npf.animate([{ transform: `translateY(${from}px)` }, { transform: "translateY(0)" }], {
+    duration: 220,
+    easing: "cubic-bezier(.2,.8,.2,1)",
+  });
+  anim.finished.then(resetDrag, resetDrag);
+}
+
 npf.addEventListener("pointerdown", (e) => {
-  swipe = e.target.closest("button, canvas, input") ? null : { x: e.clientX, y: e.clientY };
+  const now = performance.now();
+  swipe = e.target.closest("button, canvas, input")
+    ? null
+    : { x: e.clientX, y: e.clientY, mode: null, lastY: e.clientY, lastT: now, v: 0 };
 });
-npf.addEventListener("pointercancel", () => (swipe = null));
-npf.addEventListener("pointerup", (e) => {
+npf.addEventListener("pointermove", (e) => {
   if (!swipe) return;
   const dx = e.clientX - swipe.x;
   const dy = e.clientY - swipe.y;
+  if (!swipe.mode && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+    swipe.mode = dy > 0 && dy > Math.abs(dx) ? "down" : "side";
+    if (swipe.mode === "down") {
+      npf.setPointerCapture(e.pointerId);
+      npf.getAnimations().forEach((a) => a.cancel()); // por si seguía la animación de entrada
+      npf.classList.add("dragging");
+    }
+  }
+  if (swipe.mode !== "down") return;
+  const now = performance.now();
+  swipe.v = (e.clientY - swipe.lastY) / Math.max(1, now - swipe.lastT);
+  swipe.lastY = e.clientY;
+  swipe.lastT = now;
+  npf.style.transform = `translateY(${Math.max(0, dy)}px)`;
+});
+npf.addEventListener("pointercancel", () => {
+  if (swipe?.mode === "down") springBack();
   swipe = null;
-  // Hacia abajo: lo mismo que la flecha de arriba a la izquierda (cerrar la pantalla).
-  if (dy > 90 && dy > Math.abs(dx) * 1.5) return closeNowPlaying();
+});
+npf.addEventListener("pointerup", (e) => {
+  const s = swipe;
+  swipe = null;
+  if (!s) return;
+  const dx = e.clientX - s.x;
+  const dy = e.clientY - s.y;
+  if (s.mode === "down") {
+    return dy > DRAG_CLOSE_PX || (dy > DRAG_MIN_PX && s.v > DRAG_CLOSE_SPEED) ? slideAway(Math.max(0, dy)) : springBack();
+  }
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   step(dx < 0 ? 1 : -1);
   syncNowPlaying();

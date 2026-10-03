@@ -619,11 +619,13 @@ body.npf-open { overflow: hidden; }
   padding: calc(env(safe-area-inset-top) + 6px) clamp(18px, 6vw, 30px) calc(env(safe-area-inset-bottom) + 14px);
   background: linear-gradient(180deg, hsl(var(--h, 340) 36% 16%) 0%, #0b0b0d 52%);
   overflow-y: auto;
-  animation: npf-in 0.25s ease-out;
+  animation: npf-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+  will-change: transform;
 }
 .nowplaying[hidden] { display: none; }
 .nowplaying { touch-action: none; } /* los gestos (deslizar a los lados / hacia abajo) los maneja la app */
-@keyframes npf-in { from { transform: translateY(24px); opacity: 0; } }
+@keyframes npf-in { from { transform: translateY(100%); } } /* entra desde abajo, como una hoja */
+.nowplaying.dragging { border-radius: 20px 20px 0 0; } /* mientras baja se ve la hoja con esquinas redondeadas */
 
 .npf-top { display: grid; grid-template-columns: 44px 1fr 44px; align-items: center; }
 .npf-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: rgb(255 255 255 / 0.85); border-radius: 50%; }
@@ -903,6 +905,8 @@ html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar 
 .account { max-width: 420px; margin: 4vh auto 0; display: grid; gap: 14px; justify-items: center; text-align: center; }
 .account h1 { margin: 0; font-size: 1.6rem; }
 .account .m-rows, .account .actions { justify-self: stretch; }
+.page-back { justify-self: start; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: rgb(255 255 255 / 0.12); color: #fff; }
+.page-back:active { transform: scale(0.95); }
 .auth-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; border-radius: 999px; background: var(--panel); }
 .auth-tab { padding: 10px; border: 0; border-radius: 999px; background: none; color: var(--muted); font-weight: 700; }
 .auth-tab.active { background: #fff; color: #000; }
