@@ -710,7 +710,7 @@ function makeMiniCard(song) {
 }
 
 function showMobileHome(list) {
-  main.style.setProperty("--tint", "hsl(350 55% 18%)");
+  main.style.setProperty("--tint", "hsl(16 55% 17%)");
   syncViz(); // sin escenario no hay visualizador de fondo
 
   // Buscando: solo los resultados, sin saludo ni carrusel.

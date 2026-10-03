@@ -12,20 +12,20 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body class="no-track">
+  <script src="korte-intro.js"></script>
   <div id="splash" role="status" aria-label="Cargando">
-    <svg viewBox="0 0 512 512" width="132" height="132" aria-hidden="true">
+    <svg viewBox="240 120 520 520" width="143" height="143" aria-hidden="true">
       <defs>
-        <linearGradient id="sp-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#FF4D6A"/><stop offset="1" stop-color="#E0183F"/></linearGradient>
+        <clipPath id="sp-dt"><polygon points="0,0 1000,0 1000,198 0,562"/></clipPath>
+        <clipPath id="sp-db"><polygon points="0,562 1000,198 1000,1000 0,1000"/></clipPath>
       </defs>
-      <rect width="512" height="512" rx="112" fill="url(#sp-bg)"/>
-      <circle cx="256" cy="256" r="196" fill="#17090D"/>
-      <g fill="none" stroke="#fff" stroke-opacity="0.10" stroke-width="3"><circle cx="256" cy="256" r="174"/><circle cx="256" cy="256" r="152"/><circle cx="256" cy="256" r="130"/><circle cx="256" cy="256" r="108"/></g>
-      <circle cx="256" cy="256" r="88" fill="#fff"/>
-      <g class="splash-note" fill="#E0183F">
-        <ellipse cx="240" cy="288" rx="20" ry="15" transform="rotate(-22 240 288)"/>
-        <rect x="256" y="212" width="9" height="76" rx="3"/>
-        <path d="M265 212 C268 234 296 238 294 266 C287 252 275 251 265 249 Z"/>
+      <g class="splash-note">
+        <!-- Círculo invisible: deja el centro de la caja exactamente en el centro del disco, para que gire sin bambolearse. -->
+        <circle cx="487" cy="391" r="232" fill="none"/>
+        <g clip-path="url(#sp-db)"><circle cx="500" cy="380" r="232" fill="#F2EDE4"/><circle cx="500" cy="380" r="212" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="196" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="180" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="164" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="148" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="132" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="116" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/></g>
+        <g transform="translate(13,-11)"><g clip-path="url(#sp-dt)"><circle cx="500" cy="380" r="232" fill="#F2EDE4"/><circle cx="500" cy="380" r="212" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="196" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="180" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="164" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="148" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="132" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/><circle cx="500" cy="380" r="116" fill="none" stroke="#0E0D0C" stroke-width="2.5" opacity=".45"/></g></g>
       </g>
+      <circle cx="500" cy="380" r="88" fill="#FF4D1F"/><path d="M460.896 417.44V339.44H484.92V398.408L478.68 393.312L520.176 339.44H545.552L482.84000000000003 417.44ZM498.232 380.936 516.0160000000001 366.584 546.696 417.44H519.24Z" fill="#0E0D0C"/>
     </svg>
   </div>
     <!-- Íconos propios: los emojis (⏸ 🔀 🔁) cada teléfono los dibuja distinto, a veces en naranja. -->
