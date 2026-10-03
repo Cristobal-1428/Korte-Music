@@ -25,6 +25,13 @@ const isMobile = window.matchMedia("(max-width: 800px)");
 let songs = []; // canciones públicas
 let privateSongs = []; // canciones privadas: solo llegan con la clave de administrador
 let privateToken = null; // permiso temporal para escucharlas (lo entrega /admin/session)
+let artists = new Map(); // perfiles con datos extra (biografía, foto), por nombre normalizado
+let playQueue = null; // ids de la lista desde la que se reproduce (p. ej. un artista); null = toda la biblioteca
+let me = null; // { email, role, is_admin } si hay sesión iniciada
+let authToken = null; // token de sesión que se envía a la API
+let likedIds = new Set(); // canciones a las que la persona con sesión dio me gusta
+let recovering = false; // llegó desde el enlace de "olvidé mi contraseña"
+let accountNotice = ""; // aviso que muestra la página de cuenta
 let currentId = null; // canción cargada en el reproductor
 let detailId = null; // canción abierta en la vista de detalle
 const durations = new Map(); // id -> segundos (la BD no guarda la duración)
@@ -55,6 +62,56 @@ function coverStyle(song) {
 function initial(song) {
   if (song.has_cover) return "";
   return song.title.trim().charAt(0).toUpperCase() || "♪";
+}
+
+function hueOf(text) {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return h;
+}
+
+// Mismo criterio que el servidor: sin tildes, en minúsculas y con espacios simples.
+function artistKey(name) {
+  return name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().split(/\s+/).filter(Boolean).join(" ");
+}
+
+// "Benjita de la 22 FT Giovanni" -> ["Benjita de la 22", "Giovanni"]. Separan: coma, &, " x ", ft y feat.
+function creditsOf(text) {
+  return text.split(/\s*(?:,|&|\s+x\s+|\bfeat(?:uring)?\.?(?=\s)|\bft\.?(?=\s))\s*/i).map((c) => c.trim()).filter(Boolean);
+}
+
+// Canciones públicas en las que participa el artista (como principal o invitado).
+function songsOfArtist(name) {
+  const key = artistKey(name);
+  return songs.filter((s) => creditsOf(s.artist).some((c) => artistKey(c) === key));
+}
+
+function allArtists() {
+  const map = new Map();
+  for (const s of songs) {
+    for (const credit of creditsOf(s.artist)) {
+      const key = artistKey(credit);
+      if (!map.has(key)) map.set(key, { name: artists.get(key)?.name || credit, songs: [] });
+      map.get(key).songs.push(s);
+    }
+  }
+  const plays = (a) => a.songs.reduce((n, s) => n + s.plays, 0);
+  return [...map.values()].sort((a, b) => plays(b) - plays(a) || a.name.localeCompare(b.name));
+}
+
+function artistAvatarStyle(name) {
+  const h = hueOf(name);
+  const gradient = `linear-gradient(135deg, hsl(${h} 65% 42%), hsl(${(h + 60) % 360} 65% 24%))`;
+  const info = artists.get(artistKey(name));
+  return info?.has_image ? `background: url("${artistImageUrl(info)}") center / cover no-repeat, ${gradient}` : `background: ${gradient}`;
+}
+
+function artistImageUrl(info) {
+  return `${API_URL}/artists/image?name=${encodeURIComponent(info.name)}&v=${info.version}`;
+}
+
+function artistInitial(name) {
+  return artists.get(artistKey(name))?.has_image ? "" : name.trim().charAt(0).toUpperCase() || "♪";
 }
 
 function formatTime(seconds) {
@@ -97,25 +154,54 @@ function loadDuration(song, onReady) {
 /* ---------- Carga y rutas ---------- */
 
 async function loadSongs() {
+  await loadMe();
   await refreshAdminSession();
+  document.documentElement.classList.toggle("is-admin", !!privateToken);
+  document.documentElement.classList.toggle("signed-in", !!me);
   const res = await fetch(`${API_URL}/songs`, { headers: privateToken ? authHeaders() : {} });
   if (!res.ok) throw new Error("No se pudo cargar la biblioteca");
   const all = await res.json();
   songs = all.filter((s) => !s.is_private);
   privateSongs = all.filter((s) => s.is_private);
+  await loadArtists();
   renderLibrary();
   route();
 }
 
+// Perfiles con biografía y foto. Si falla, los artistas siguen existiendo (se arman con las canciones).
+async function loadArtists() {
+  try {
+    const res = await fetch(`${API_URL}/artists`);
+    artists = new Map((res.ok ? await res.json() : []).map((a) => [artistKey(a.name), a]));
+  } catch {
+    artists = new Map();
+  }
+}
+
+// Cabeceras de identidad: la clave de administrador (si la hay) y/o la sesión de la cuenta.
 function authHeaders() {
   const key = pref.get("admin-key", "");
-  return key ? { "X-Admin-Key": key } : {};
+  return { ...(key ? { "X-Admin-Key": key } : {}), ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}) };
+}
+
+// Pregunta a la API quién es la persona con sesión y qué canciones marcó con me gusta.
+async function loadMe() {
+  me = null;
+  likedIds = new Set();
+  if (!authToken) return;
+  try {
+    const res = await fetch(`${API_URL}/me`, { headers: authHeaders() });
+    if (!res.ok) return; // sesión vencida, o el servidor aún no tiene las cuentas activadas
+    me = await res.json();
+    const likes = await fetch(`${API_URL}/me/likes`, { headers: authHeaders() });
+    if (likes.ok) likedIds = new Set(await likes.json());
+  } catch { /* sin conexión: se reintenta en la próxima carga */ }
 }
 
 // Con la clave guardada pide el permiso para las canciones privadas; si la clave ya no sirve, la olvida.
 async function refreshAdminSession() {
   privateToken = null;
-  if (!pref.get("admin-key", "")) return;
+  if (!pref.get("admin-key", "") && !authToken) return;
   try {
     const res = await fetch(`${API_URL}/admin/session`, { headers: authHeaders() });
     if (res.ok) privateToken = (await res.json()).token;
@@ -164,6 +250,7 @@ function closeSongMenu() {
 }
 
 function menuButton(song, className) {
+  if (!privateToken) return document.createDocumentFragment(); // editar y eliminar son solo del administrador
   const btn = el("button", className, "⋮");
   btn.type = "button";
   btn.title = "Más opciones";
@@ -279,6 +366,17 @@ function visibleSongs() {
   return songs.filter((s) => `${s.title} ${s.artist}`.toLowerCase().includes(q));
 }
 
+// Marca la sección activa en el menú lateral y en la barra de abajo.
+function setNav(active) {
+  for (const section of ["home", "search", "private", "artists", "account"]) {
+    for (const prefix of ["nav-", "tab-"]) $(prefix + section)?.classList.toggle("active", section === active);
+  }
+}
+
+function openArtist(name) {
+  location.hash = `#/artist/${encodeURIComponent(name)}`;
+}
+
 let firstRoute = true;
 
 function route() {
@@ -288,7 +386,16 @@ function route() {
     firstRoute = false;
     if (location.hash.startsWith("#/song/")) history.replaceState(null, "", location.pathname + location.search + "#/");
   }
-  if (location.hash === "#/private") return showPrivate();
+  const hash = location.hash;
+  setNav(
+    hash === "#/private" ? "private" : hash === "#/search" ? "search" : hash === "#/account" ? "account" : hash.startsWith("#/artist") ? "artists" : hash.startsWith("#/song/") && !isMobile.matches ? null : "home",
+  );
+  if (hash === "#/private") return showPrivate();
+  const artistMatch = hash.match(/^#\/artist\/(.+)$/);
+  if (artistMatch) return showArtist(decodeURIComponent(artistMatch[1]));
+  if (hash === "#/artists") return showArtists();
+  if (hash === "#/search") return showSearch();
+  if (hash === "#/account") return showAccount();
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
   if (song && isMobile.matches) {
@@ -442,9 +549,9 @@ function showHome() {
     const box = el("div", "empty-home");
     box.append(
       el("h1", "", songs.length ? "Sin resultados" : "Tu bandeja está vacía"),
-      el("p", "empty", songs.length ? "Prueba con otra búsqueda." : "Sube tu primera canción para empezar."),
+      el("p", "empty", songs.length ? "Prueba con otra búsqueda." : privateToken ? "Sube tu primera canción para empezar." : "Aún no hay canciones."),
     );
-    if (!songs.length) {
+    if (!songs.length && privateToken) {
       const add = el("button", "big-play", "＋ Subir canción");
       add.addEventListener("click", openUpload);
       box.append(add);
@@ -567,7 +674,7 @@ function refreshPlays() {
 }
 
 // Fila compacta: toca para reproducir; › abre el detalle y ⋮ abre editar / eliminar.
-function makeRow(song, withDetail = true) {
+function makeRow(song, withDetail = true, queue = null) {
   const cover = el("div", "m-cover", initial(song));
   cover.style.cssText = coverStyle(song);
   const meta = el("div", "m-meta");
@@ -587,7 +694,7 @@ function makeRow(song, withDetail = true) {
   const row = el("div", "m-row");
   row.dataset.id = song.id;
   row.append(cover, meta, ...(withDetail ? [detail] : []), menuButton(song, "m-btn m-del"));
-  row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id)));
+  row.addEventListener("click", () => (currentId === song.id ? togglePlay() : playSong(song.id, queue)));
   return row;
 }
 
@@ -663,6 +770,469 @@ function showMobileHome(list) {
 // Al girar el teléfono o cambiar el ancho, la vista se rehace con el diseño que corresponda.
 isMobile.addEventListener("change", () => route());
 
+/* ---------- Artistas ---------- */
+
+function leaveStage() {
+  detailId = null;
+  vinylWrap = null;
+  deck = null;
+  homeStage = null;
+  stageCanvas = null;
+  syncViz();
+}
+
+// En el detalle de escritorio el nombre del artista lleva a su perfil.
+function artistLine(song) {
+  const line = el("div", "stage-artist", song.artist);
+  if (!song.is_private) {
+    line.classList.add("link");
+    line.addEventListener("click", () => openArtist(creditsOf(song.artist)[0]));
+  }
+  return line;
+}
+
+function makeArtistCard(artist) {
+  const avatar = el("div", "artist-card-avatar", artistInitial(artist.name));
+  avatar.style.cssText = artistAvatarStyle(artist.name);
+  const card = el("button", "artist-card");
+  card.type = "button";
+  card.append(
+    avatar,
+    el("span", "artist-card-name", artist.name),
+    el("span", "artist-card-sub", `${artist.songs.length} ${artist.songs.length === 1 ? "canción" : "canciones"}`),
+  );
+  card.addEventListener("click", () => openArtist(artist.name));
+  return card;
+}
+
+function showArtists() {
+  leaveStage();
+  main.style.setProperty("--tint", "hsl(200 35% 17%)");
+  const list = allArtists();
+  const box = el("section", "artists-page");
+  box.append(
+    el("h1", "page-title", "Artistas"),
+    el("p", "m-stats", `${list.length} ${list.length === 1 ? "artista" : "artistas"}`),
+  );
+  if (list.length === 0) {
+    box.append(el("p", "empty", "Aún no hay artistas: aparecen al subir canciones."));
+  } else {
+    const grid = el("div", "artist-grid");
+    grid.append(...list.map(makeArtistCard));
+    box.append(grid);
+  }
+  view.replaceChildren(box);
+  main.scrollTop = 0;
+  updatePlayState();
+}
+
+// Fila numerada de "Populares": número, portada, título y reproducciones.
+function makeRankRow(song, rank, queue) {
+  const row = makeRow(song, false, queue);
+  row.prepend(el("span", "m-rank", String(rank)));
+  return row;
+}
+
+function showArtist(name) {
+  leaveStage();
+  const key = artistKey(name);
+  const list = songsOfArtist(name);
+  const info = artists.get(key);
+  const display = info?.name || list.flatMap((s) => creditsOf(s.artist)).find((c) => artistKey(c) === key) || name;
+  const h = hueOf(display);
+  main.style.setProperty("--tint", `hsl(${h} 45% 16%)`);
+  const ids = list.map((s) => s.id);
+  const totalPlays = list.reduce((n, s) => n + s.plays, 0);
+  const totalLikes = list.reduce((n, s) => n + s.likes, 0);
+
+  // Portada grande: la foto ocupa todo el ancho y el nombre va encima, abajo a la izquierda.
+  const banner = el("section", "artist-banner");
+  banner.style.setProperty("--g1", `hsl(${h} 65% 42%)`);
+  banner.style.setProperty("--g2", `hsl(${(h + 60) % 360} 65% 20%)`);
+  if (info?.has_image) banner.style.setProperty("--art", `url("${artistImageUrl(info)}")`);
+  else banner.append(el("span", "artist-banner-initial", artistInitial(display)));
+  const back = el("button", "artist-back");
+  back.type = "button";
+  back.setAttribute("aria-label", "Volver a Artistas");
+  back.innerHTML = '<svg class="ic"><use href="#i-back"/></svg>';
+  back.addEventListener("click", () => (location.hash = "#/artists"));
+  banner.append(back, el("h1", "artist-name", display));
+  const nodes = [banner];
+
+  nodes.push(
+    el(
+      "p",
+      "artist-stats",
+      `${playsText(totalPlays)} · ${list.length} ${list.length === 1 ? "canción" : "canciones"} · ${totalLikes} me gusta`,
+    ),
+  );
+
+  // Barra de acciones: a la izquierda editar (solo con la clave); a la derecha aleatorio y el botón grande de play.
+  const bar = el("div", "artist-bar");
+  const left = el("div", "artist-bar-left");
+  if (privateToken) {
+    const edit = el("button", "viz-chip", "Editar perfil");
+    edit.type = "button";
+    edit.addEventListener("click", () => openArtistEdit(display));
+    left.append(edit);
+  }
+  const right = el("div", "artist-bar-right");
+  if (list.length) {
+    const shuffle = el("button", "artist-icon");
+    shuffle.type = "button";
+    shuffle.setAttribute("aria-label", "Reproducir al azar");
+    shuffle.innerHTML = '<svg class="ic"><use href="#i-shuffle"/></svg>';
+    shuffle.addEventListener("click", () => playSong(list[Math.floor(Math.random() * list.length)].id, ids));
+    const play = el("button", "artist-play");
+    play.id = "artist-play";
+    play.type = "button";
+    play.dataset.ids = JSON.stringify(ids);
+    play.setAttribute("aria-label", "Reproducir");
+    play.innerHTML = '<svg class="ic fill"><use href="#i-play"/></svg>';
+    play.addEventListener("click", () => (ids.includes(currentId) ? togglePlay() : playSong(list[0].id, ids)));
+    right.append(shuffle, play);
+  }
+  bar.append(left, right);
+  nodes.push(bar);
+
+  if (info?.bio) {
+    const bio = el("p", "artist-bio clamp", info.bio);
+    bio.addEventListener("click", () => bio.classList.toggle("clamp")); // toca para leerla entera
+    nodes.push(bio);
+  } else if (privateToken) {
+    nodes.push(el("p", "artist-bio empty", "Sin biografía todavía. Toca «Editar perfil» para escribirla."));
+  }
+
+  const popular = [...list].sort((a, b) => b.plays - a.plays).filter((s) => s.plays > 0).slice(0, 5);
+  if (popular.length) {
+    const popularIds = popular.map((s) => s.id);
+    const rows = el("div", "m-rows");
+    rows.append(...popular.map((s, i) => makeRankRow(s, i + 1, popularIds)));
+    nodes.push(el("h2", "m-section", "Populares"), rows);
+  }
+  if (list.length) {
+    const rows = el("div", "m-rows");
+    rows.append(...list.map((s) => makeRow(s, false, ids)));
+    nodes.push(el("h2", "m-section", "Canciones"), rows);
+  } else {
+    nodes.push(el("p", "empty", "Todavía no hay canciones públicas de este artista."));
+  }
+
+  view.replaceChildren(...nodes);
+  main.scrollTop = 0;
+  refreshPlays();
+  markActive();
+  updatePlayState();
+}
+
+/* ---------- Buscar (pestaña de abajo) ---------- */
+
+let lastQuery = "";
+const plain = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+function showSearch() {
+  leaveStage();
+  main.style.setProperty("--tint", "hsl(220 30% 16%)");
+  const input = el("input", "search-input");
+  input.type = "search";
+  input.placeholder = "¿Qué quieres reproducir?";
+  input.autocomplete = "off";
+  input.value = lastQuery;
+  const box = el("div", "search-box");
+  box.innerHTML = '<svg class="ic"><use href="#i-search"/></svg>';
+  box.append(input);
+  const results = el("div", "search-results");
+
+  const render = () => {
+    lastQuery = input.value;
+    const q = plain(input.value.trim());
+    results.replaceChildren();
+    if (!q) {
+      results.append(el("h2", "m-section", "Explora artistas"));
+      const strip = el("div", "m-carousel");
+      strip.append(...allArtists().map(makeArtistCard));
+      results.append(strip, el("p", "empty", "Busca canciones o artistas."));
+    } else {
+      const foundArtists = allArtists().filter((a) => plain(a.name).includes(q));
+      const foundSongs = songs.filter((s) => plain(`${s.title} ${s.artist}`).includes(q));
+      if (foundArtists.length) {
+        const strip = el("div", "m-carousel");
+        strip.append(...foundArtists.map(makeArtistCard));
+        results.append(el("h2", "m-section", "Artistas"), strip);
+      }
+      if (foundSongs.length) {
+        const ids = foundSongs.map((s) => s.id);
+        const rows = el("div", "m-rows");
+        rows.append(...foundSongs.map((s) => makeRow(s, false, ids)));
+        results.append(el("h2", "m-section", "Canciones"), rows);
+      }
+      if (!foundArtists.length && !foundSongs.length) results.append(el("p", "empty", `Sin resultados para «${input.value.trim()}».`));
+    }
+    refreshPlays();
+    markActive();
+    updatePlayState();
+  };
+  input.addEventListener("input", render);
+  view.replaceChildren(box, results);
+  main.scrollTop = 0;
+  render();
+  input.focus({ preventScroll: true });
+}
+
+/* ---------- Editar el perfil del artista (solo con la clave) ---------- */
+
+const artistDialog = $("artist-dialog");
+const artistForm = $("artist-form");
+const artistStatus = $("artist-status");
+
+function openArtistEdit(name) {
+  const info = artists.get(artistKey(name));
+  artistForm.reset();
+  artistForm.elements.name.value = name;
+  artistForm.elements.bio.value = info?.bio || "";
+  $("artist-remove-wrap").hidden = !info?.has_image;
+  $("artist-dialog-title").textContent = `Perfil de ${name}`;
+  artistStatus.textContent = "";
+  artistStatus.className = "";
+  artistDialog.showModal();
+}
+$("cancel-artist").addEventListener("click", () => artistDialog.close());
+
+artistForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submit = $("submit-artist");
+  submit.disabled = true;
+  artistStatus.className = "";
+  artistStatus.textContent = "Guardando...";
+  try {
+    const body = new FormData(artistForm);
+    const file = artistForm.elements.image.files[0];
+    body.delete("image");
+    if (file) {
+      try {
+        body.append("image", await squareCover(file), "artist.jpg");
+      } catch {
+        throw new Error("No se pudo leer la imagen");
+      }
+    }
+    const res = await adminFetch(`${API_URL}/artists`, { method: "PUT", body });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo guardar el perfil");
+    }
+    artistDialog.close();
+    await loadSongs(); // recarga los perfiles y vuelve a dibujar la página del artista
+  } catch (e) {
+    artistStatus.className = "error";
+    artistStatus.textContent = e.message;
+  } finally {
+    submit.disabled = false;
+  }
+});
+
+/* ---------- Cuenta ---------- */
+
+let authMode = "signin"; // "signin" (entrar) o "signup" (crear cuenta)
+
+function accountIcon() {
+  const icon = el("div", "priv-icon");
+  icon.innerHTML = '<svg class="ic"><use href="#i-user"/></svg>';
+  return icon;
+}
+
+function showAccount() {
+  leaveStage();
+  main.style.setProperty("--tint", "hsl(280 30% 17%)");
+  const box = el("section", "account");
+  const paint = () => box.replaceChildren(...accountContent(paint));
+  paint();
+  view.replaceChildren(box);
+  main.scrollTop = 0;
+  markActive();
+  updatePlayState();
+}
+
+function authField(type, placeholder, autocomplete) {
+  const input = el("input", "auth-input");
+  input.type = type;
+  input.placeholder = placeholder;
+  input.autocomplete = autocomplete;
+  input.required = true;
+  return input;
+}
+
+async function signOut() {
+  forgetAdmin();
+  await Auth.signOut(); // el cambio de sesión recarga la biblioteca
+}
+
+function accountContent(repaint) {
+  if (!Auth.enabled) {
+    return [accountIcon(), el("h1", "", "Tu cuenta"), el("p", "empty", "Las cuentas todavía no están activadas en esta copia de la app.")];
+  }
+  if (recovering && Auth.token) return [accountIcon(), el("h1", "", "Nueva contraseña"), newPasswordForm(repaint)];
+  if (me) return signedInContent();
+  if (Auth.token) {
+    const out = el("button", "viz-chip", "Cerrar sesión");
+    out.type = "button";
+    out.addEventListener("click", signOut);
+    return [
+      accountIcon(),
+      el("h1", "", "Tu cuenta"),
+      el("p", "empty", `Entraste como ${Auth.email}, pero no se pudo verificar con el servidor. Intenta de nuevo en un momento.`),
+      out,
+    ];
+  }
+  return signedOutContent(repaint);
+}
+
+function signedOutContent(repaint) {
+  const tabs = el("div", "auth-tabs");
+  for (const [mode, label] of [["signin", "Entrar"], ["signup", "Crear cuenta"]]) {
+    const tab = el("button", `auth-tab${authMode === mode ? " active" : ""}`, label);
+    tab.type = "button";
+    tab.addEventListener("click", () => {
+      authMode = mode;
+      repaint();
+    });
+    tabs.append(tab);
+  }
+  const email = authField("email", "Correo", "email");
+  const password = authField("password", "Contraseña", authMode === "signup" ? "new-password" : "current-password");
+  password.minLength = 6;
+  const submit = el("button", "big-play", authMode === "signup" ? "Crear cuenta" : "Entrar");
+  submit.type = "submit";
+  const msg = el("p", "auth-msg");
+  msg.setAttribute("role", "status");
+  if (accountNotice) {
+    msg.textContent = accountNotice;
+    accountNotice = "";
+  }
+  const form = el("form", "auth-form");
+  form.append(email, password, submit);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    submit.disabled = true;
+    msg.className = "auth-msg";
+    msg.textContent = "Un momento…";
+    const address = email.value.trim();
+    const res = authMode === "signup" ? await Auth.signUp(address, password.value) : await Auth.signIn(address, password.value);
+    submit.disabled = false;
+    if (res.error) {
+      msg.className = "auth-msg error";
+      msg.textContent = res.error;
+      return;
+    }
+    if (res.confirm) {
+      authMode = "signin";
+      accountNotice = `Te enviamos un correo a ${address}. Ábrelo, toca el enlace para confirmar tu cuenta y después inicia sesión.`;
+      repaint();
+    }
+    // Si entró, el cambio de sesión recarga la biblioteca y esta página se vuelve a dibujar sola.
+  });
+  const nodes = [
+    accountIcon(),
+    el("h1", "", "Tu cuenta"),
+    el("p", "empty", "Con una cuenta puedes dar me gusta y guardar lo que te gusta."),
+    tabs,
+    form,
+    msg,
+  ];
+  if (authMode === "signin") {
+    const forgot = el("button", "auth-link", "¿Olvidaste tu contraseña?");
+    forgot.type = "button";
+    forgot.addEventListener("click", async () => {
+      if (!email.value.trim()) {
+        msg.className = "auth-msg error";
+        msg.textContent = "Escribe tu correo arriba y vuelve a tocar aquí.";
+        email.focus();
+        return;
+      }
+      msg.className = "auth-msg";
+      msg.textContent = "Enviando…";
+      const res = await Auth.resetPassword(email.value.trim());
+      if (res.error) {
+        msg.className = "auth-msg error";
+        msg.textContent = res.error;
+      } else {
+        msg.textContent = "Si ese correo tiene cuenta, te enviamos un enlace para elegir una contraseña nueva.";
+      }
+    });
+    nodes.push(forgot);
+  }
+  return nodes;
+}
+
+function newPasswordForm(repaint) {
+  const password = authField("password", "Nueva contraseña", "new-password");
+  password.minLength = 6;
+  const save = el("button", "big-play", "Guardar contraseña");
+  save.type = "submit";
+  const msg = el("p", "auth-msg");
+  const form = el("form", "auth-form");
+  form.append(password, save, msg);
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    save.disabled = true;
+    const res = await Auth.updatePassword(password.value);
+    save.disabled = false;
+    if (res.error) {
+      msg.className = "auth-msg error";
+      msg.textContent = res.error;
+      return;
+    }
+    recovering = false;
+    accountNotice = "Contraseña actualizada.";
+    repaint();
+  });
+  return form;
+}
+
+function signedInContent() {
+  const initialLetter = (me.email || Auth.email || "?").charAt(0).toUpperCase();
+  const who = el("div", "account-who");
+  who.append(el("div", "account-email", me.email || ""), el("span", "role-badge", me.is_admin ? "Administrador" : "Oyente"));
+  const head = el("div", "account-head");
+  head.append(el("div", "account-avatar", initialLetter), who);
+  const nodes = [head];
+
+  if (accountNotice) {
+    nodes.push(el("p", "auth-msg", accountNotice));
+    accountNotice = "";
+  }
+  if (me.is_admin) {
+    const upload = el("button", "big-play", "＋ Subir canción");
+    upload.type = "button";
+    upload.addEventListener("click", openUpload);
+    const priv = el("button", "viz-chip", "Sección privada");
+    priv.type = "button";
+    priv.addEventListener("click", () => (location.hash = "#/private"));
+    const actions = el("div", "actions");
+    actions.append(upload, priv);
+    nodes.push(actions);
+  }
+
+  const mine = [...songs, ...privateSongs].filter((s) => likedIds.has(s.id));
+  nodes.push(el("h2", "m-section", `Tus me gusta (${mine.length})`));
+  if (mine.length) {
+    const ids = mine.map((s) => s.id);
+    const rows = el("div", "m-rows");
+    rows.append(...mine.map((s) => makeRow(s, false, ids)));
+    nodes.push(rows);
+  } else {
+    nodes.push(el("p", "empty", "Aún no has dado me gusta. Toca el corazón en el reproductor."));
+  }
+
+  const out = el("button", "viz-chip", "Cerrar sesión");
+  out.type = "button";
+  out.addEventListener("click", signOut);
+  const outRow = el("div", "actions");
+  outRow.append(out);
+  nodes.push(outRow);
+  refreshPlays();
+  return nodes;
+}
+
 /* ---------- Sección privada ---------- */
 
 function showPrivate() {
@@ -715,7 +1285,18 @@ function privateLock() {
     await loadSongs().catch((err) => alert(err.message)); // trae las privadas y vuelve a dibujar esta vista
   });
   const box = el("section", "priv-lock");
-  box.append(icon, el("h1", "", "Sección privada"), el("p", "empty", "Escribe la clave para ver tu música privada."), form, msg);
+  const login = el("button", "viz-chip", me ? "Tu cuenta no es de administrador" : "Iniciar sesión con tu cuenta");
+  login.type = "button";
+  login.disabled = !!me;
+  login.addEventListener("click", () => (location.hash = "#/account"));
+  box.append(
+    icon,
+    el("h1", "", "Sección privada"),
+    el("p", "empty", "Solo para administradores. Inicia sesión con tu cuenta o escribe la clave."),
+    login,
+    form,
+    msg,
+  );
   return box;
 }
 
@@ -727,7 +1308,8 @@ function privateList() {
   out.type = "button";
   out.addEventListener("click", lockPrivate);
   const actions = el("div", "actions");
-  actions.append(add, out);
+  if (me?.is_admin) actions.append(add); // con cuenta de administrador no hay clave que cerrar
+  else actions.append(add, out);
 
   const box = el("section", "priv-list");
   box.append(
@@ -745,12 +1327,17 @@ function privateList() {
   return box;
 }
 
-// Olvida la clave en este navegador y vuelve al inicio.
-function lockPrivate() {
+// Olvida la clave de administrador en este navegador y esconde todo lo privado.
+function forgetAdmin() {
   pref.set("admin-key", "");
   privateToken = null;
+  document.documentElement.classList.remove("is-admin");
   if (privateSongs.some((s) => s.id === currentId)) resetPlayer(); // si sonaba una privada, se detiene
   privateSongs = [];
+}
+
+function lockPrivate() {
+  forgetAdmin();
   location.hash = "#/";
 }
 
@@ -817,7 +1404,7 @@ function showDetail(song) {
   info.append(
     el("span", "stage-kind", "Canción"),
     el("h1", "stage-title", song.title),
-    el("div", "stage-artist", song.artist),
+    artistLine(song),
     chips,
     actions,
     controls,
@@ -864,6 +1451,8 @@ function markActive() {
 
 function updatePlayState() {
   setIcon(playBtn, audio.paused ? "play" : "pause");
+  const artistPlay = $("artist-play");
+  if (artistPlay) setIcon(artistPlay, JSON.parse(artistPlay.dataset.ids).includes(currentId) && !audio.paused ? "pause" : "play");
   syncMediaState();
   syncNowPlaying();
   // La canción "en pantalla" es la del disco central (inicio) o la del detalle.
@@ -890,10 +1479,11 @@ function togglePlay() {
   else audio.pause();
 }
 
-function playSong(id) {
+function playSong(id, queue = null) {
   const song = findSong(id);
   if (!song) return;
   currentId = id;
+  playQueue = queue; // siguiente / anterior / aleatorio se quedan dentro de esta lista
   document.body.classList.remove("no-track");
   listened = 0;
   lastTime = 0;
@@ -922,15 +1512,18 @@ function showInPlayer(song) {
 }
 
 function step(delta) {
-  // La cola es la sección de la canción que suena: escuchar privadas no mezcla las públicas.
-  const list = privateSongs.some((s) => s.id === currentId) ? privateSongs : songs;
+  // La cola es la lista desde la que se empezó (un artista); si no hay, la sección de la canción que suena:
+  // escuchar privadas no mezcla las públicas.
+  const queued = playQueue?.includes(currentId) ? playQueue.map(findSong).filter(Boolean) : null;
+  const list = queued || (privateSongs.some((s) => s.id === currentId) ? privateSongs : songs);
+  const queue = queued ? playQueue : null;
   if (list.length === 0) return;
   if (shuffleOn && delta > 0 && list.length > 1) {
     const others = list.filter((s) => s.id !== currentId);
-    return playSong(others[Math.floor(Math.random() * others.length)].id);
+    return playSong(others[Math.floor(Math.random() * others.length)].id, queue);
   }
   const i = list.findIndex((s) => s.id === currentId);
-  playSong(list[(i + delta + list.length) % list.length].id);
+  playSong(list[(i + delta + list.length) % list.length].id, queue);
 }
 
 playBtn.addEventListener("click", () => {
@@ -1205,13 +1798,6 @@ const snakeCtx = snakeCanvas.getContext("2d");
 
 let shuffleOn = pref.get("shuffle", "0") === "1";
 let repeatOne = pref.get("repeat", "0") === "1";
-// Sin cuentas, cada navegador recuerda qué canciones marcó con "me gusta".
-const liked = new Set(
-  (() => {
-    try { return JSON.parse(pref.get("liked", "[]")); } catch { return []; }
-  })(),
-);
-
 const currentSong = () => findSong(currentId);
 
 function syncNowPlaying() {
@@ -1224,8 +1810,9 @@ function syncNowPlaying() {
   cover.style.cssText = coverStyle(song);
   $("npf-title").textContent = song.title;
   $("npf-artist").textContent = song.artist;
+  $("npf-artist").classList.toggle("link", !song.is_private);
   $("npf-plays").textContent = playsText(song.plays ?? 0);
-  const isLiked = liked.has(song.id);
+  const isLiked = likedIds.has(song.id);
   $("npf-like").classList.toggle("on", isLiked);
   $("npf-like").setAttribute("aria-pressed", String(isLiked));
   $("npf-likes").textContent = song.likes ?? 0;
@@ -1261,14 +1848,24 @@ window.addEventListener("popstate", () => {
   if (!npf.hidden) hideNowPlaying();
 });
 
+// Cierra la pantalla del reproductor y, cuando terminó de cerrarse, hace la acción (p. ej. cambiar de página).
+function afterClosingPlayer(go) {
+  const viaHistory = !npf.hidden && history.state?.npf;
+  if (viaHistory) window.addEventListener("popstate", go, { once: true });
+  closeNowPlaying();
+  if (!viaHistory) go();
+}
+
 async function toggleLike() {
   const song = currentSong();
   if (!song) return;
-  const was = liked.has(song.id);
-  const apply = (on) => {
-    on ? liked.add(song.id) : liked.delete(song.id);
-    pref.set("liked", JSON.stringify([...liked]));
-  };
+  if (!me) {
+    // El me gusta es por persona: hace falta una cuenta.
+    accountNotice = Auth.enabled ? "Inicia sesión o crea una cuenta para dar me gusta." : "Las cuentas todavía no están activadas.";
+    return afterClosingPlayer(() => (location.hash = "#/account"));
+  }
+  const was = likedIds.has(song.id);
+  const apply = (on) => (on ? likedIds.add(song.id) : likedIds.delete(song.id));
   apply(!was);
   song.likes = Math.max(0, (song.likes ?? 0) + (was ? -1 : 1)); // optimista: se corrige con la respuesta
   syncNowPlaying();
@@ -1302,6 +1899,11 @@ document.querySelector(".np").addEventListener("click", openNowPlaying);
 $("npf-close").addEventListener("click", closeNowPlaying);
 $("npf-like").addEventListener("click", toggleLike);
 $("npf-share").addEventListener("click", shareSong);
+$("npf-artist").addEventListener("click", () => {
+  const song = currentSong();
+  if (!song || song.is_private) return;
+  afterClosingPlayer(() => openArtist(creditsOf(song.artist)[0]));
+});
 $("npf-viz").addEventListener("click", () => {
   closeNowPlaying();
   openViz();
@@ -1482,7 +2084,6 @@ function openUpload(e, isPrivate = false) {
   dialog.showModal();
 }
 $("nav-upload").addEventListener("click", openUpload);
-$("tab-upload").addEventListener("click", openUpload);
 $("open-upload").addEventListener("click", openUpload);
 $("cancel-upload").addEventListener("click", () => dialog.close());
 
@@ -1536,7 +2137,27 @@ form.addEventListener("submit", async (event) => {
 
 /* ---------- Inicio ---------- */
 
-loadSongs()
+let lastUid = null;
+Auth.ready
+  .then(() => {
+    authToken = Auth.token;
+    lastUid = Auth.userId;
+    // El enlace del correo vuelve con ?code=…; ya se usó, se limpia de la dirección.
+    if (location.search.includes("code=")) history.replaceState(null, "", location.pathname + location.hash);
+    Auth.onChange(async (event, next) => {
+      authToken = next?.access_token || null;
+      if (event === "PASSWORD_RECOVERY") {
+        recovering = true;
+        location.hash = "#/account";
+      }
+      const uid = next?.user?.id || null;
+      if (uid !== lastUid) {
+        lastUid = uid; // entró o salió alguien: se vuelve a cargar todo con su permiso
+        await loadSongs().catch(() => {});
+      }
+    });
+    return loadSongs();
+  })
   .catch((e) => {
     statusEl.className = "error";
     statusEl.textContent = `${e.message}. ¿Está corriendo la API en ${API_URL}?`;

@@ -743,6 +743,174 @@ body.npf-open { overflow: hidden; }
 dialog label.check { display: flex; align-items: center; gap: 10px; color: var(--text); }
 dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
+/* ---------- Artistas ---------- */
+.artist-hero { display: flex; align-items: center; gap: clamp(16px, 4vw, 28px); padding: 4px 0 12px; }
+.artist-avatar {
+  flex: none;
+  width: clamp(104px, 30vw, 176px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: clamp(2.6rem, 11vw, 4.6rem);
+  font-weight: 800;
+  text-shadow: 0 2px 10px rgb(0 0 0 / 0.35);
+  box-shadow: 0 14px 40px rgb(0 0 0 / 0.45);
+}
+.artist-head { min-width: 0; }
+.artist-kind { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: rgb(255 255 255 / 0.6); }
+.artist-name { margin: 6px 0 8px; font-size: clamp(1.7rem, 7vw, 3.4rem); line-height: 1.05; font-weight: 900; overflow-wrap: anywhere; }
+.artist-head .m-stats { margin: 0; }
+.artist-bio { margin: 6px 0 16px; max-width: 62ch; color: rgb(255 255 255 / 0.8); line-height: 1.55; white-space: pre-line; }
+.artist-bio.empty { color: var(--muted); font-size: 0.9rem; }
+.artists-page .m-stats { margin-bottom: 16px; }
+.artist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 22px 14px; }
+.artist-card { display: grid; justify-items: center; gap: 4px; padding: 0; border: 0; background: none; text-align: center; min-width: 0; }
+.artist-card-avatar {
+  width: 100%;
+  max-width: 150px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 2.6rem;
+  font-weight: 800;
+  margin-bottom: 6px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.4);
+}
+.artist-card:active .artist-card-avatar { transform: scale(0.97); }
+.artist-card-name { max-width: 100%; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.artist-card-sub { color: var(--muted); font-size: 0.8rem; }
+.stage-artist.link, #npf-artist.link { cursor: pointer; }
+.stage-artist.link:hover { text-decoration: underline; }
+#npf-artist.link::after { content: " ›"; opacity: 0.6; }
+dialog textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid #3a3a3d;
+  background: var(--bg);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+  outline: none;
+}
+dialog textarea:focus { border-color: #666; }
+
+/* ---------- Página del artista (portada grande) ---------- */
+.artist-banner {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  min-height: clamp(230px, 64vw, 400px);
+  padding: 18px;
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(0deg, rgb(18 18 18 / 0.96) 0%, rgb(18 18 18 / 0.35) 38%, transparent 72%),
+    var(--art, none) center 22% / cover no-repeat,
+    linear-gradient(135deg, var(--g1), var(--g2));
+}
+.artist-banner-initial {
+  position: absolute;
+  right: 8%;
+  top: 10%;
+  font-size: clamp(6rem, 42vw, 13rem);
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  opacity: 0.2;
+}
+.artist-name {
+  position: relative;
+  margin: 0;
+  font-size: clamp(2.2rem, 11vw, 4.6rem);
+  line-height: 1;
+  font-weight: 900;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 0.55);
+  overflow-wrap: anywhere;
+}
+.artist-back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px);
+  left: 12px;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.45);
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.artist-stats { margin: 12px 0 0; color: var(--muted); font-size: 0.9rem; }
+.artist-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 12px 0 8px; }
+.artist-bar-left { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.artist-bar-right { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.artist-icon { width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: none; color: rgb(255 255 255 / 0.75); border-radius: 50%; }
+.artist-icon:active { background: rgb(255 255 255 / 0.1); }
+.artist-play {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.4);
+}
+.artist-play .ic { width: 28px; height: 28px; }
+.artist-play:active { transform: scale(0.95); }
+.artist-bio { margin: 10px 0 4px; max-width: 62ch; color: rgb(255 255 255 / 0.8); line-height: 1.55; white-space: pre-line; cursor: pointer; }
+.artist-bio.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.artist-bio.empty { color: var(--muted); font-size: 0.9rem; cursor: default; }
+.m-rank { flex: none; width: 22px; text-align: center; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---------- Buscar ---------- */
+.search-box { position: relative; margin: 2px 0 6px; }
+.search-box .ic { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.search-input {
+  width: 100%;
+  padding: 14px 18px 14px 48px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--panel);
+  outline: none;
+  font-size: 1rem;
+}
+.search-input:focus { border-color: #555; }
+.search-input::placeholder { color: var(--muted); }
+.m-carousel > .artist-card { flex: none; width: 104px; align-content: start; }
+.m-carousel .artist-card-name { white-space: normal; line-height: 1.15; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+#status:empty { display: none; } /* sin mensaje no ocupa espacio (la portada del artista llega hasta arriba) */
+
+/* ---------- Cuenta ---------- */
+html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar / eliminar: solo el administrador */
+.account { max-width: 420px; margin: 4vh auto 0; display: grid; gap: 14px; justify-items: center; text-align: center; }
+.account h1 { margin: 0; font-size: 1.6rem; }
+.account .m-rows, .account .actions { justify-self: stretch; }
+.auth-tabs { display: grid; grid-template-columns: 1fr 1fr; width: 100%; padding: 4px; border-radius: 999px; background: var(--panel); }
+.auth-tab { padding: 10px; border: 0; border-radius: 999px; background: none; color: var(--muted); font-weight: 700; }
+.auth-tab.active { background: #fff; color: #000; }
+.auth-form { display: grid; gap: 10px; width: 100%; }
+.auth-input { padding: 13px 18px; border-radius: 999px; border: 1px solid #3a3a3d; background: var(--panel); outline: none; text-align: center; min-width: 0; width: 100%; }
+.auth-input:focus { border-color: #666; }
+.auth-form .big-play { justify-content: center; }
+.auth-msg { min-height: 1.2em; margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
+.auth-msg.error { color: #ff6b7d; }
+.auth-link { border: 0; background: none; color: var(--muted); text-decoration: underline; font-size: 0.85rem; padding: 4px; }
+.auth-link:hover { color: var(--text); }
+.account-head { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; }
+.account-avatar { flex: none; width: 64px; height: 64px; border-radius: 50%; display: grid; place-items: center; font-size: 1.8rem; font-weight: 800; background: linear-gradient(135deg, var(--accent), #7a1d8c); }
+.account-who { min-width: 0; display: grid; gap: 6px; justify-items: start; }
+.account-email { max-width: 100%; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.role-badge { padding: 3px 10px; border-radius: 999px; background: rgb(255 255 255 / 0.1); color: rgb(255 255 255 / 0.8); font-size: 0.75rem; font-weight: 700; }
+.account .m-section { justify-self: start; margin: 10px 0 0; }
+.account .empty { padding: 0; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 800px) {
   :root { --player-h: 68px; --tab-h: 58px; }
@@ -758,6 +926,8 @@ dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent
   .seek { display: none; }
   .controls { align-items: flex-end; }
   .main { padding: 14px 16px 24px; }
+  .topbar { display: none; } /* en el celular se busca desde la pestaña Buscar */
+  .artist-banner { margin: -14px -16px 0; border-radius: 0; } /* la portada llega hasta los bordes */
 
   .tabbar {
     display: flex;
@@ -780,7 +950,7 @@ dialog label.check input { width: 18px; height: 18px; accent-color: var(--accent
     border: 0;
     background: none;
     color: var(--muted);
-    font-size: 0.72rem;
+    font-size: 0.68rem;
     font-weight: 600;
     text-decoration: none;
   }
