@@ -46,7 +46,8 @@ function hue(song) {
 }
 
 function coverUrl(song) {
-  const base = `${API_URL}/songs/${song.id}/cover`;
+  if (song.cover_url) return song.cover_url; // pública: directo a Supabase, sin pasar por la API
+  const base =`${API_URL}/songs/${song.id}/cover`;
   return song.is_private ? `${base}?t=${encodeURIComponent(privateToken || "")}` : base;
 }
 
@@ -133,7 +134,10 @@ function el(tag, className, text) {
 }
 
 function streamUrl(song) {
-  const base = `${API_URL}/songs/${song.id}/stream`;
+  // Pública: el audio se pide directo a Supabase. Dar la vuelta por la API en cada tramo hacía que, con el teléfono
+  // ocupado (por ejemplo grabando una historia), el sonido se entrecortara. Las privadas siguen yendo por la API.
+  if (song.audio_url) return song.audio_url;
+  const base =`${API_URL}/songs/${song.id}/stream`;
   return song.is_private ? `${base}?t=${encodeURIComponent(privateToken || "")}` : base;
 }
 
@@ -1511,7 +1515,9 @@ function updatePlayState() {
 
 // Conecta el analizador (necesita un gesto del usuario) y reproduce.
 function startPlayback() {
-  Visualizer.attach(audio);
+  // En el celular el audio se conecta al visualizador solo cuando se abre (openViz): conectado, el sonido pasa por un
+  // procesador extra que se entrecorta con facilidad si el teléfono está ocupado. En escritorio sí se conecta al reproducir.
+  if (!isMobile.matches) Visualizer.attach(audio);
   audio.play().catch(() => {});
 }
 
