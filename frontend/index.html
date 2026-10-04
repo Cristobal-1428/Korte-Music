@@ -10,6 +10,10 @@
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="style.css" />
+  <!-- Vercel Web Analytics (visitas). Es lo mismo que hace inject() de @vercel/analytics; en HTML sin empaquetador se carga así.
+       Solo funciona publicado en Vercel y con "Web Analytics" activado en el proyecto; en local da 404 sin consecuencias. -->
+  <script>window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };</script>
+  <script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body class="no-track">
   <script src="korte-intro.js" data-wait="app"></script>
