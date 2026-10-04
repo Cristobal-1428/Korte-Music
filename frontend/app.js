@@ -1805,6 +1805,10 @@ Visualizer.onFrame = (g) => {
 
 $("viz-open").addEventListener("click", () => (viz.hidden ? openViz() : closeViz()));
 $("viz-close").addEventListener("click", closeViz);
+// Tocar una pestaña (o un enlace del menú) con el visualizador abierto lo cierra y lleva a esa sección. El clic se atiende
+// aparte del cambio de ruta porque tocar la pestaña en la que ya estás no cambia la dirección.
+document.querySelectorAll("a.tab, a.nav-item").forEach((link) => link.addEventListener("click", () => !viz.hidden && closeViz()));
+window.addEventListener("hashchange", () => !viz.hidden && closeViz());
 $("viz-full").addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else viz.requestFullscreen();
