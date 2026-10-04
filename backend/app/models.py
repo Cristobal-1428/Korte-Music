@@ -21,6 +21,22 @@ class Song(SQLModel, table=True):
     def has_cover(self) -> bool:
         return bool(self.cover_path)
 
+    @property
+    def audio_url(self) -> str | None:
+        """Dirección pública del audio en Supabase: el navegador lo pide directo, sin dar la vuelta por la API.
+        Las privadas no la tienen: siempre pasan por la API, que es lo que las protege."""
+        from . import storage  # aquí adentro para evitar importaciones circulares
+
+        return storage.public_url(self.file_path) if storage.USE_SUPABASE and not self.is_private else None
+
+    @property
+    def cover_url(self) -> str | None:
+        from . import storage
+
+        if storage.USE_SUPABASE and self.cover_path and not self.is_private:
+            return storage.public_url(self.cover_path)
+        return None
+
 
 class Like(SQLModel, table=True):
     """Un "me gusta" de una persona (user_id viene de Supabase Auth) a una canción: solo uno por par."""
@@ -67,4 +83,6 @@ class SongRead(SQLModel):
     likes: int = 0
     is_private: bool = False
     has_cover: bool = False
+    audio_url: str | None = None
+    cover_url: str | None = None
     created_at: datetime
