@@ -289,7 +289,7 @@ const Visualizer = (() => {
         // Onda: doble trazo (halo + línea fina).
         if (timeData) {
           const cy = h * 0.4;
-          const amp = h * (0.1 + bass * 0.25);
+          const amp = h * (0.05 + bass * 0.12); // alto de la onda (la mitad que antes)
           const step = 4;
           for (const [lw, alpha, l] of [[7, 0.18, 60], [2, 0.95, 75]]) {
             ctx.strokeStyle = hsla(g.hueB, 90, l, alpha);
