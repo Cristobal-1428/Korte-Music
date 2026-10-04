@@ -166,11 +166,11 @@ const Visualizer = (() => {
       init() { rings = []; },
       draw() {
         const { dt, playing, bass, maxR, dpr } = g;
-        const speed = playing ? 0.3 + bass * 1.1 + g.beat * 0.4 : 0.05;
+        const speed = playing ? 0.13 + bass * 0.5 + g.beat * 0.18 : 0.03; // avance del túnel (más lento que antes)
         for (const r of rings) r.z += speed * dt;
         while (rings.length && rings[0].z > 1.2) rings.shift();
         if (playing && (!rings.length || rings[rings.length - 1].z >= SPACING)) spawn();
-        rot += dt * (0.12 + bass * 0.9);
+        rot += dt * (0.06 + bass * 0.45); // giro del túnel
 
         const cx = g.cx + Math.sin(g.now / 1800) * g.w * 0.03;
         const cy = g.cy + Math.cos(g.now / 2300) * g.h * 0.03;
@@ -272,7 +272,7 @@ const Visualizer = (() => {
         const bw = w / N;
         for (let i = 0; i < N; i++) {
           const v = spec[Math.min(BANDS - 1, Math.floor((i / N) * BANDS * 0.9))];
-          const bh = Math.max(2 * dpr, v * h * 0.62);
+          const bh = Math.max(2 * dpr, v * h * 0.4); // las barras llegan como mucho al 40 % del alto
           const hue = lerp(g.hueA, g.hueB, i / N);
 
           const grad = ctx.createLinearGradient(0, h, 0, h - bh);
