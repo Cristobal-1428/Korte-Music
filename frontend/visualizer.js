@@ -412,30 +412,64 @@ const Visualizer = (() => {
     };
   })();
 
-  // 6) Ambiente: manchas de luz suaves que orbitan y respiran con cada banda.
-  const ambience = (() => {
-    const N = 9;
+  // 6) Corredor: un túnel de marcos rectangulares en perspectiva que avanza hacia ti y gira despacio.
+  // Cada marco guarda la energía del instante en que nació: así la música viaja por el corredor hacia afuera.
+  const corridor = (() => {
+    const SPACING = 0.06;
+    let frames = [];
+    let rot = 0;
+    let n = 0;
     return {
-      id: "ambience",
-      label: "Ambiente",
-      init() {},
+      id: "corridor",
+      label: "Corredor",
+      init() { frames = []; },
       draw() {
-        const { cx, cy, maxR, bass, now } = g;
-        fade(0.22);
-        for (let i = 0; i < N; i++) {
-          const v = spec[Math.floor((i / N) * BANDS * 0.7)];
-          const ang = now / (2600 + i * 380) + i * (TAU / N);
-          const dist = maxR * (0.18 + 0.22 * Math.sin(now / 2100 + i * 1.7)) * (1 + bass * 0.35);
-          const x = cx + Math.cos(ang) * dist;
-          const y = cy + Math.sin(ang) * dist * 0.75;
-          const r = maxR * (0.07 + v * 0.2 + bass * 0.06);
-          glow(x, y, r, i % 2 ? g.hueB : g.hueA, 0.07 + v * 0.2);
+        const { dt, playing, bass, dpr, w, h } = g;
+        const speed = playing ? 0.14 + bass * 0.5 + g.beat * 0.18 : 0.03;
+        for (const f of frames) f.z += speed * dt;
+        while (frames.length && frames[0].z > 1.25) frames.shift();
+        if (playing && (!frames.length || frames[frames.length - 1].z >= SPACING)) {
+          frames.push({ n: n++, z: 0, e: Math.min(1, bass * 0.7 + g.mid * 0.6 + g.treble * 0.3) });
         }
+        rot += dt * (0.05 + bass * 0.25);
+
+        const cx = g.cx + Math.sin(g.now / 2000) * w * 0.04;
+        const cy = g.cy + Math.cos(g.now / 2600) * h * 0.04;
+        const hw = w * 0.62; // medio ancho / medio alto del marco más cercano (se pasa de la pantalla)
+        const hh = h * 0.62;
+        const pulse = 1 + g.beat * 0.05;
+
+        fade(0.32);
+        glow(cx, cy, g.maxR * (0.07 + bass * 0.2), g.hueA, 0.12 + bass * 0.3);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.rotate(rot);
+
+        // Aristas del corredor: del punto de fuga hacia las esquinas y los centros de cada lado.
+        ctx.strokeStyle = hsla(g.hueB, 60, 50, 0.16);
+        ctx.lineWidth = dpr;
+        ctx.beginPath();
+        for (const [sx, sy] of [[-1, -1], [0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0]]) {
+          ctx.moveTo(0, 0);
+          ctx.lineTo(sx * hw * 1.4, sy * hh * 1.4);
+        }
+        ctx.stroke();
+
+        // Marcos, alternando color A / color B.
+        for (const f of frames) {
+          const s = Math.pow(f.z, 2) * pulse;
+          const alpha = Math.min(1, f.z * 10) * (0.8 - Math.min(f.z, 1) * 0.3) * (0.4 + f.e * 0.6);
+          ctx.strokeStyle = hsla(f.n % 2 ? g.hueB : g.hueA, 70, 45 + f.z * 25, alpha);
+          ctx.lineWidth = (0.8 + f.z * 2.2 + f.e * 3 * f.z) * dpr;
+          ctx.strokeRect(-hw * s, -hh * s, hw * s * 2, hh * s * 2);
+        }
+        ctx.restore();
       },
     };
   })();
 
-  const MODES = [tunnel, rays, bars, circle, particles, ambience];
+  const MODES = [tunnel, rays, bars, circle, particles, corridor];
   const currentMode = () => MODES.find((m) => m.id === modeId);
 
   /* ---------- Bucle ---------- */
