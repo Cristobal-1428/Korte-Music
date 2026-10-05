@@ -5,6 +5,8 @@ import re
 import secrets
 import time
 import unicodedata
+from html import escape
+from urllib.parse import quote
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -12,7 +14,7 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy import case, update
 from sqlalchemy import delete as sql_delete
 from sqlalchemy.exc import IntegrityError
@@ -475,3 +477,48 @@ async def artist_image(name: str = Query(...), session: Session = Depends(get_se
     if not path.is_file():
         raise HTTPException(404, "Foto no encontrada en disco")
     return FileResponse(path, media_type=COVER_TYPES.get(path.suffix.lower(), "image/jpeg"))
+
+
+# ------------------------------------------------------------------- compartir
+# Los rastreadores de WhatsApp, Instagram, etc. no ejecutan JavaScript ni leen el #, así que el enlace que se
+# comparte apunta a la API: devuelve una página con la vista previa (Open Graph) y redirige a la app.
+
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://korte-music-frontend.vercel.app").rstrip("/")
+API_PUBLIC_URL = os.getenv("API_PUBLIC_URL", "https://korte-music.onrender.com").rstrip("/")
+
+
+def _share_page(title: str, description: str, image: str | None, target: str, page_url: str) -> HTMLResponse:
+    t, d, u, g = escape(title, True), escape(description, True), escape(target, True), escape(page_url, True)
+    img = f'<meta property="og:image" content="{escape(image, True)}"><meta name="twitter:card" content="summary_large_image">' if image else '<meta name="twitter:card" content="summary">'
+    body = (
+        f'<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{t}</title>'
+        f'<meta property="og:type" content="music.song"><meta property="og:site_name" content="Korte Music">'
+        f'<meta property="og:title" content="{t}"><meta property="og:description" content="{d}">'
+        f'<meta property="og:url" content="{g}">{img}'
+        f'<meta http-equiv="refresh" content="0;url={u}"></head>'
+        f'<body><a href="{u}">Abrir en Korte Music</a></body></html>'
+    )
+    return HTMLResponse(body, headers={"Cache-Control": "public, max-age=300"})
+
+
+@app.get("/share/song/{song_id}")
+def share_song(song_id: int, session: Session = Depends(get_session)):
+    song = session.get(Song, song_id)
+    if song is None or song.is_private:  # lo privado nunca se anuncia
+        return RedirectResponse(FRONTEND_URL, status_code=302)
+    image = f"{API_PUBLIC_URL}/songs/{song.id}/cover" if song.cover_path else None
+    return _share_page(
+        f"{song.title} – {song.artist}", "Escúchala en Korte Music", image,
+        f"{FRONTEND_URL}/#/song/{song.id}", f"{API_PUBLIC_URL}/share/song/{song.id}",
+    )
+
+
+@app.get("/share/artist")
+def share_artist(name: str = Query(...), session: Session = Depends(get_session)):
+    artist = session.exec(select(Artist).where(Artist.key == artist_key(name))).first()
+    display = artist.name if artist else name
+    image = f"{API_PUBLIC_URL}/artists/image?name={quote(display)}" if artist and artist.image_path else None
+    return _share_page(
+        display, "Su música en Korte Music", image,
+        f"{FRONTEND_URL}/#/artist/{quote(display, safe='')}", f"{API_PUBLIC_URL}/share/artist?name={quote(display)}",
+    )
