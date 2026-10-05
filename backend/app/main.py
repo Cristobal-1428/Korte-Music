@@ -436,6 +436,7 @@ async def save_artist(
         artist.image_path = None
     artist.name = name
     artist.bio = bio.replace("\r\n", "\n").strip() or None
+    artist.instagram = instagram_url
     artist.updated_at = datetime.now(timezone.utc)
     session.add(artist)
     session.commit()
