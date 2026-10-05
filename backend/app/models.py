@@ -14,7 +14,6 @@ class Song(SQLModel, table=True):
     likes: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     # Privada: solo la ve quien tenga la clave de administrador; su audio va a un almacenamiento no público.
     is_private: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
-    instagram: str | None = None  # enlace al Instagram del artista (opcional)
     cover_path: str | None = None  # imagen de portada (opcional), mismo almacenamiento que el audio
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -54,6 +53,7 @@ class Artist(SQLModel, table=True):
     key: str = Field(index=True, unique=True)  # nombre sin tildes ni mayúsculas: "benjita de la 22"
     name: str
     bio: str | None = None
+    instagram: str | None = None
     image_path: str | None = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -70,6 +70,7 @@ class Artist(SQLModel, table=True):
 class ArtistRead(SQLModel):
     name: str
     bio: str | None = None
+    instagram: str | None = None
     has_image: bool = False
     version: int = 0
 
@@ -84,7 +85,6 @@ class SongRead(SQLModel):
     likes: int = 0
     is_private: bool = False
     has_cover: bool = False
-    instagram: str | None = None
     audio_url: str | None = None
     cover_url: str | None = None
     created_at: datetime

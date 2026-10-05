@@ -299,7 +299,6 @@ function openEdit(song) {
   editForm.reset();
   editForm.elements.title.value = song.title;
   editForm.elements.artist.value = song.artist;
-  editForm.elements.instagram.value = song.instagram ?? "";
   $("edit-remove-wrap").hidden = !song.has_cover;
   editStatus.textContent = "";
   editStatus.className = "";
@@ -788,14 +787,6 @@ function leaveStage() {
 }
 
 // En el detalle de escritorio el nombre del artista lleva a su perfil.
-function instagramLink(song) {
-  const a = el("a", "ig-link", "Instagram");
-  a.href = song.instagram;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  return a;
-}
-
 function artistLine(song) {
   const line = el("div", "stage-artist", song.artist);
   if (!song.is_private) {
@@ -1459,7 +1450,6 @@ function showDetail(song) {
     el("span", "stage-kind", "Canción"),
     el("h1", "stage-title", song.title),
     artistLine(song),
-    ...(song.instagram ? [instagramLink(song)] : []),
     chips,
     actions,
     controls,
@@ -1872,9 +1862,6 @@ function syncNowPlaying() {
   $("npf-title").textContent = song.title;
   $("npf-artist").textContent = song.artist;
   $("npf-artist").classList.toggle("link", !song.is_private);
-  const ig = $("npf-ig");
-  ig.hidden = !song.instagram;
-  if (song.instagram) ig.href = song.instagram;
   $("npf-plays").textContent = playsText(song.plays ?? 0);
   const isLiked = likedIds.has(song.id);
   $("npf-like").classList.toggle("on", isLiked);

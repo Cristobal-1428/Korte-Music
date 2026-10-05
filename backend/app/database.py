@@ -42,12 +42,15 @@ def init_db() -> None:
         "likes": "INTEGER NOT NULL DEFAULT 0",
         "is_private": "BOOLEAN NOT NULL DEFAULT FALSE",
         "cover_path": "VARCHAR",
-        "instagram": "VARCHAR",
     }
     for column, definition in new_columns.items():
         if column not in existing:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE song ADD COLUMN {column} {definition}"))
+    existing_artist = {c["name"] for c in inspect(engine).get_columns("artist")}
+    if "instagram" not in existing_artist:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE artist ADD COLUMN instagram VARCHAR"))
 
 
 def get_session():
