@@ -39,6 +39,7 @@ COVER_TYPES = {
     ".webp": "image/webp",
 }
 MAX_COVER_BYTES = 5 * 1024 * 1024
+MAX_LYRICS_CHARS = 20000
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_MB", "50")) * 1024 * 1024
 UPLOAD_CHUNK = 1024 * 1024
 ADMIN_KEY = os.getenv("ADMIN_KEY", "")
@@ -199,9 +200,11 @@ async def edit_song(
     artist: str = Form(..., min_length=1, max_length=200),
     remove_cover: bool = Form(False),
     cover: UploadFile | None = File(None),
+    lyrics: str | None = Form(None, max_length=MAX_LYRICS_CHARS),
+    set_lyrics: bool = Form(False),  # true: aplicar "lyrics" aunque venga vacío (un campo vacío llega como ausente)
     session: Session = Depends(get_session),
 ):
-    """Cambia título y artista; la portada se reemplaza si llega una nueva, o se quita con remove_cover."""
+    """Cambia título y artista (y la letra, si llega); la portada se reemplaza si llega una nueva, o se quita con remove_cover."""
     song = session.get(Song, song_id)
     if song is None:
         raise HTTPException(404, "Canción no encontrada")
@@ -217,6 +220,8 @@ async def edit_song(
         song.cover_path = None
     song.title = title.strip()
     song.artist = artist.strip()
+    if set_lyrics:
+        song.lyrics = (lyrics or "").strip() or None
     session.add(song)
     session.commit()
     session.refresh(song)
@@ -362,6 +367,25 @@ async def stream_song(
     if not path.is_file():
         raise HTTPException(404, "Archivo de audio no encontrado en disco")
     return range_response(path, range, song.content_type)
+
+
+@app.get("/songs/{song_id}/lyrics")
+def song_lyrics(song_id: int, t: str | None = Query(default=None), session: Session = Depends(get_session)):
+    song = session.get(Song, song_id)
+    if song is None or (song.is_private and not valid_session_token(t)):
+        raise HTTPException(404, "Canción no encontrada")
+    return {"lyrics": song.lyrics or ""}
+
+
+@app.put("/songs/{song_id}/lyrics", status_code=204, dependencies=[Depends(require_admin)])
+def set_lyrics(song_id: int, lyrics: str = Form("", max_length=MAX_LYRICS_CHARS), session: Session = Depends(get_session)):
+    """Guarda la letra (vacía = quitarla). La usa el script de transcripción."""
+    song = session.get(Song, song_id)
+    if song is None:
+        raise HTTPException(404, "Canción no encontrada")
+    song.lyrics = lyrics.strip() or None
+    session.add(song)
+    session.commit()
 
 
 @app.get("/songs/{song_id}/cover")

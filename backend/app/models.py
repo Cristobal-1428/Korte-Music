@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import false
+from sqlalchemy import Column, Text
 from sqlmodel import Field, SQLModel
 
 
@@ -15,7 +16,13 @@ class Song(SQLModel, table=True):
     # Privada: solo la ve quien tenga la clave de administrador; su audio va a un almacenamiento no público.
     is_private: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
     cover_path: str | None = None  # imagen de portada (opcional), mismo almacenamiento que el audio
+    # Letra en formato LRC ("[0:12.50] frase") o texto simple, una frase por línea. No va en la lista de canciones.
+    lyrics: str | None = Field(default=None, sa_column=Column(Text, nullable=True))
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def has_lyrics(self) -> bool:
+        return bool(self.lyrics and self.lyrics.strip())
 
     @property
     def has_cover(self) -> bool:
@@ -85,6 +92,7 @@ class SongRead(SQLModel):
     likes: int = 0
     is_private: bool = False
     has_cover: bool = False
+    has_lyrics: bool = False
     audio_url: str | None = None
     cover_url: str | None = None
     created_at: datetime

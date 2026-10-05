@@ -42,6 +42,7 @@ def init_db() -> None:
         "likes": "INTEGER NOT NULL DEFAULT 0",
         "is_private": "BOOLEAN NOT NULL DEFAULT FALSE",
         "cover_path": "VARCHAR",
+        "lyrics": "TEXT",
     }
     for column, definition in new_columns.items():
         if column not in existing:
