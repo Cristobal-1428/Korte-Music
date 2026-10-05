@@ -8,15 +8,20 @@ Uso:
     python tools/transcribe_lyrics.py --ids 3 5          # solo esas canciones
     python tools/transcribe_lyrics.py --overwrite        # también reemplaza letras ya guardadas
     python tools/transcribe_lyrics.py --model medium     # más preciso y más lento (por defecto: small)
+    python tools/transcribe_lyrics.py --ids 3 --text letra.txt --overwrite
+        # usa TU letra (un verso por línea) y solo toma de la IA los tiempos; las líneas [Estribillo] se ignoran
 
 Variables: API_URL (por defecto la de producción) y ADMIN_KEY (la clave de administrador de Render).
 Las canciones privadas se omiten. La primera vez se descarga el modelo (small ≈ 500 MB).
 Las letras salen con tiempos ([0:12.50] frase); se corrigen a mano desde "Editar canción".
 """
 import argparse
+import difflib
 import os
+import re
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 
 import httpx
@@ -34,6 +39,61 @@ DEFAULT_API = "https://korte-music.onrender.com"
 def stamp(seconds: float) -> str:
     minutes, rest = divmod(max(seconds, 0), 60)
     return f"[{int(minutes)}:{rest:05.2f}]"
+
+
+def norm(text: str) -> list[str]:
+    """Palabras en minúsculas, sin tildes ni signos, para comparar lo escrito con lo que oyó la IA."""
+    plain = "".join(c for c in unicodedata.normalize("NFD", text) if not unicodedata.combining(c))
+    return re.findall(r"[a-z0-9ñ]+", plain.lower().replace("ñ", "n"))
+
+
+def align(written: list[str], words):
+    """Pone tiempo a cada línea escrita según las palabras que la IA oyó. Devuelve (lista de (tiempo, línea), cuántas se ubicaron)."""
+    heard = [(norm(w.word), w.start) for w in words]
+    heard_tokens, heard_times = [], []
+    for toks, start in heard:
+        for tok in toks:
+            heard_tokens.append(tok)
+            heard_times.append(start)
+    flat, owner = [], []
+    for i, line in enumerate(written):
+        for tok in norm(line):
+            flat.append(tok)
+            owner.append(i)
+    anchors: list[float | None] = [None] * len(written)
+    matcher = difflib.SequenceMatcher(None, flat, heard_tokens, autojunk=False)
+    for a, b, size in matcher.get_matching_blocks():
+        for k in range(size):
+            line = owner[a + k]
+            if anchors[line] is None:  # la primera palabra que coincide marca el inicio de la línea
+                anchors[line] = heard_times[b + k]
+    # El tiempo nunca retrocede: una coincidencia fuera de orden se descarta.
+    last = -1.0
+    for i, a in enumerate(anchors):
+        if a is None:
+            continue
+        if a < last:
+            anchors[i] = None
+        else:
+            last = a
+    known = [i for i, a in enumerate(anchors) if a is not None]
+    found = len(known)
+    if not known:
+        return [], 0
+    # Las líneas sin coincidencia se reparten entre sus vecinas con tiempo (3 s por línea en los extremos).
+    for i in range(len(anchors)):
+        if anchors[i] is not None:
+            continue
+        before = max((k for k in known if k < i), default=None)
+        after = min((k for k in known if k > i), default=None)
+        if before is not None and after is not None:
+            frac = (i - before) / (after - before)
+            anchors[i] = anchors[before] + (anchors[after] - anchors[before]) * frac
+        elif before is not None:
+            anchors[i] = anchors[before] + 3.0 * (i - before)
+        else:
+            anchors[i] = max(0.0, anchors[after] - 3.0 * (after - i))
+    return [(anchors[i], line) for i, line in enumerate(written)], found
 
 
 def phrases(words, max_words: int = 9, pause: float = 0.45):
@@ -64,8 +124,20 @@ def main() -> int:
     parser.add_argument("--ids", type=int, nargs="*", help="solo estas canciones")
     parser.add_argument("--overwrite", action="store_true", help="reemplaza letras ya guardadas")
     parser.add_argument("--model", default="small", help="tiny, base, small, medium, large-v3")
+    parser.add_argument("--text", help="archivo .txt con la letra correcta (un verso por línea); requiere --ids con una sola canción")
     parser.add_argument("--language", default="es", help="idioma de las canciones (es, en...; vacío = detectar)")
     args = parser.parse_args()
+
+    written = None
+    if args.text:
+        if not args.ids or len(args.ids) != 1:
+            print("--text necesita --ids con una sola canción (ej.: --ids 3).", file=sys.stderr)
+            return 1
+        raw = Path(args.text).read_text(encoding="utf-8-sig")
+        written = [ln.strip() for ln in raw.splitlines() if ln.strip() and not re.fullmatch(r"\[[^\]]*\]", ln.strip())]
+        if not written:
+            print("El archivo de letra está vacío.", file=sys.stderr)
+            return 1
 
     key = os.getenv("ADMIN_KEY", "")
     if not key:
@@ -110,7 +182,12 @@ def main() -> int:
                     word_timestamps=True,  # tiempo de cada palabra: los segmentos enteros llegan muy imprecisos
                 )
                 words = [w for seg in segments for w in (seg.words or [])]
-                lines = [f"{stamp(start)} {text}" for start, text in phrases(words)]
+                if written is not None:
+                    timed, found = align(written, words)
+                    lines = [f"{stamp(start)} {text}" for start, text in timed]
+                    print(f"  se ubicaron {found} de {len(written)} líneas por coincidencia; el resto se estimó.")
+                else:
+                    lines = [f"{stamp(start)} {text}" for start, text in phrases(words)]
             if not lines:
                 print("  no se entendió ninguna palabra; se omite.")
                 continue
