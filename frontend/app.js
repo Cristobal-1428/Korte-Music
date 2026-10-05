@@ -2001,6 +2001,10 @@ async function renderLyrics() {
   const song = currentSong();
   const show = lyricsOn && !!song?.has_lyrics;
   npf.classList.toggle("show-lyrics", show);
+  const kicker = $("npf-kicker");
+  if (show) {
+    kicker.replaceChildren(el("b", "", song.title), el("span", "", song.artist)); // como en la captura: título y artista arriba
+  } else kicker.textContent = "Reproduciendo";
   lyricsBtn.hidden = !song?.has_lyrics;
   lyricsBtn.classList.toggle("on", lyricsOn);
   lyricsBtn.setAttribute("aria-pressed", String(lyricsOn));
@@ -2030,7 +2034,7 @@ function highlightLyric(jump = false) {
   if (lyricsBox.hidden || !lyricLines.length) return;
   let idx = -1;
   for (let i = 0; i < lyricLines.length; i++) {
-    if (lyricLines[i].time !== null && lyricLines[i].time <= audio.currentTime + 0.2) idx = i;
+    if (lyricLines[i].time !== null && lyricLines[i].time <= audio.currentTime + 0.35) idx = i;
   }
   if (idx === lyricNow && !jump) return;
   lyricNow = idx;

@@ -36,6 +36,28 @@ def stamp(seconds: float) -> str:
     return f"[{int(minutes)}:{rest:05.2f}]"
 
 
+def phrases(words, max_words: int = 9, pause: float = 0.45):
+    """Agrupa palabras con su tiempo en frases cortas: corta en pausas, tras puntuación o al juntar muchas palabras."""
+    out, cur = [], []
+
+    def flush():
+        if cur:
+            text = "".join(w.word for w in cur).strip()
+            if text:
+                out.append((cur[0].start, text))
+            cur.clear()
+
+    for w in words:
+        if cur and w.start - cur[-1].end > pause:
+            flush()
+        cur.append(w)
+        ends_clause = w.word.rstrip().endswith((".", "?", "!", ",", ";"))
+        if len(cur) >= max_words or (ends_clause and len(cur) >= 4):
+            flush()
+    flush()
+    return out
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--api", default=os.getenv("API_URL", DEFAULT_API).rstrip("/"))
@@ -81,9 +103,14 @@ def main() -> int:
                             f.write(chunk)
                 print("  transcribiendo...")
                 segments, info = model.transcribe(
-                    str(path), language=args.language or None, vad_filter=True, condition_on_previous_text=False
+                    str(path),
+                    language=args.language or None,
+                    vad_filter=True,
+                    condition_on_previous_text=False,
+                    word_timestamps=True,  # tiempo de cada palabra: los segmentos enteros llegan muy imprecisos
                 )
-                lines = [f"{stamp(seg.start)} {seg.text.strip()}" for seg in segments if seg.text.strip()]
+                words = [w for seg in segments for w in (seg.words or [])]
+                lines = [f"{stamp(start)} {text}" for start, text in phrases(words)]
             if not lines:
                 print("  no se entendió ninguna palabra; se omite.")
                 continue
