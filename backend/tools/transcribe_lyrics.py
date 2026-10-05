@@ -47,6 +47,31 @@ def norm(text: str) -> list[str]:
     return re.findall(r"[a-z0-9ñ]+", plain.lower().replace("ñ", "n"))
 
 
+def split_phrases(raw: str, long_words: int = 9) -> list[str]:
+    """Una frase por línea: corta los párrafos en cada . ? ! y las frases largas en sus comas. Ignora [Estribillo]."""
+    out = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line or re.fullmatch(r"\[[^\]]*\]", line):
+            continue
+        for sentence in re.split(r"(?<=[.!?])\s+", line):
+            if len(sentence.split()) <= long_words:
+                out.append(sentence)
+                continue
+            chunk = ""
+            for part in re.split(r"(?<=,)\s+", sentence):
+                chunk = f"{chunk} {part}".strip()
+                if len(chunk.split()) >= 4:
+                    out.append(chunk)
+                    chunk = ""
+            if chunk:
+                if out and len(chunk.split()) < 3:
+                    out[-1] += " " + chunk
+                else:
+                    out.append(chunk)
+    return out
+
+
 def align(written: list[str], words):
     """Pone tiempo a cada línea escrita según las palabras que la IA oyó. Devuelve (lista de (tiempo, línea), cuántas se ubicaron)."""
     heard = [(norm(w.word), w.start) for w in words]
@@ -134,7 +159,7 @@ def main() -> int:
             print("--text necesita --ids con una sola canción (ej.: --ids 3).", file=sys.stderr)
             return 1
         raw = Path(args.text).read_text(encoding="utf-8-sig")
-        written = [ln.strip() for ln in raw.splitlines() if ln.strip() and not re.fullmatch(r"\[[^\]]*\]", ln.strip())]
+        written = split_phrases(raw)
         if not written:
             print("El archivo de letra está vacío.", file=sys.stderr)
             return 1
