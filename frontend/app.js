@@ -904,7 +904,15 @@ function showArtist(name) {
     const bio = el("p", "artist-bio clamp", info.bio);
     bio.addEventListener("click", () => bio.classList.toggle("clamp")); // toca para leerla entera
     nodes.push(bio);
-  } else if (privateToken) {
+  }
+  if (info?.instagram) {
+    const ig = el("a", "ig-link", "Instagram");
+    ig.href = info.instagram;
+    ig.target = "_blank";
+    ig.rel = "noopener noreferrer";
+    nodes.push(ig);
+  }
+  if (!info?.bio && privateToken) {
     nodes.push(el("p", "artist-bio empty", "Sin biografía todavía. Toca «Editar perfil» para escribirla."));
   }
 
@@ -995,6 +1003,7 @@ function openArtistEdit(name) {
   artistForm.reset();
   artistForm.elements.name.value = name;
   artistForm.elements.bio.value = info?.bio || "";
+  artistForm.elements.instagram.value = info?.instagram || "";
   $("artist-remove-wrap").hidden = !info?.has_image;
   $("artist-dialog-title").textContent = `Perfil de ${name}`;
   artistStatus.textContent = "";

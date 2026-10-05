@@ -998,3 +998,6 @@ html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar 
 .song-menu .danger { color: #ff6b7d; }
 #edit-status { min-height: 1.2em; margin: 0; color: var(--muted); }
 #edit-status.error { color: #ff6b7d; }
+
+.ig-link { display: inline-block; margin: 0 0 14px; font-size: 0.85rem; color: var(--accent, #FF4D1F); text-decoration: none; }
+.ig-link:hover { text-decoration: underline; }
