@@ -302,6 +302,18 @@ function openEdit(song) {
   $("edit-remove-wrap").hidden = !song.has_cover;
   editStatus.textContent = "";
   editStatus.className = "";
+  // La letra no viene en la lista: se pide aparte. Hasta que llega, el campo está bloqueado y no se envía
+  // (así guardar antes de tiempo no la borra).
+  const box = editForm.elements.lyrics;
+  box.disabled = true;
+  box.value = "";
+  if (song.has_lyrics) {
+    fetchLyrics(song).then((text) => {
+      if (editingSong !== song) return;
+      box.value = text ?? "";
+      box.disabled = text === null;
+    });
+  } else box.disabled = false;
   editDialog.showModal();
 }
 $("cancel-edit").addEventListener("click", () => editDialog.close());
@@ -315,6 +327,8 @@ editForm.addEventListener("submit", async (event) => {
   editStatus.textContent = "Guardando...";
   try {
     const body = new FormData(editForm);
+    if (editForm.elements.lyrics.disabled) body.delete("lyrics");
+    else body.append("set_lyrics", "true");
     const coverFile = editForm.elements.cover.files[0];
     body.delete("cover");
     if (coverFile) {
@@ -329,6 +343,8 @@ editForm.addEventListener("submit", async (event) => {
       const err = await res.json().catch(() => ({}));
       throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo guardar");
     }
+    lyricsCache.delete(song.id);
+    lyricsFor = null;
     editDialog.close();
     await loadSongs();
     if (currentId === song.id && findSong(song.id)) {
@@ -1888,6 +1904,7 @@ function syncNowPlaying() {
   $("npf-repeat").classList.toggle("on", repeatOne);
   $("npf-repeat").setAttribute("aria-pressed", String(repeatOne));
   setIcon($("npf-repeat"), repeatOne ? "repeat1" : "repeat");
+  renderLyrics();
 }
 
 function openNowPlaying() {
@@ -1945,6 +1962,90 @@ async function toggleLike() {
   }
   syncNowPlaying();
 }
+
+// ---- Letra ----
+const lyricsCache = new Map(); // id -> texto de la letra
+async function fetchLyrics(song) {
+  if (lyricsCache.has(song.id)) return lyricsCache.get(song.id);
+  try {
+    const q = song.is_private ? `?t=${encodeURIComponent(privateToken || "")}` : "";
+    const res = await fetch(`${API_URL}/songs/${song.id}/lyrics${q}`);
+    if (!res.ok) return null;
+    const text = (await res.json()).lyrics;
+    lyricsCache.set(song.id, text);
+    return text;
+  } catch {
+    return null;
+  }
+}
+
+// "[1:05.30] frase" -> { time: 65.3, text: "frase" }; las líneas sin tiempo quedan con time = null.
+function parseLyrics(text) {
+  const lines = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const m = raw.match(/^\s*\[(\d+):(\d{1,2}(?:\.\d+)?)\]\s*(.*)$/);
+    if (m) lines.push({ time: Number(m[1]) * 60 + Number(m[2]), text: m[3] });
+    else if (raw.trim()) lines.push({ time: null, text: raw.trim() });
+  }
+  return lines;
+}
+
+const lyricsBox = $("npf-lyrics");
+const lyricsBtn = $("npf-lyrics-btn");
+let lyricsOn = pref.get("lyrics", "0") === "1";
+let lyricsFor = null; // id de la canción cuya letra está dibujada
+let lyricLines = []; // { time, text, node }
+let lyricNow = -1;
+
+async function renderLyrics() {
+  const song = currentSong();
+  const show = lyricsOn && !!song?.has_lyrics;
+  npf.classList.toggle("show-lyrics", show);
+  lyricsBtn.hidden = !song?.has_lyrics;
+  lyricsBtn.classList.toggle("on", lyricsOn);
+  lyricsBtn.setAttribute("aria-pressed", String(lyricsOn));
+  lyricsBox.hidden = !show;
+  if (!show || lyricsFor === song.id) return;
+  lyricsFor = song.id;
+  lyricNow = -1;
+  lyricLines = [];
+  lyricsBox.replaceChildren(el("p", "empty", "Cargando letra..."));
+  const text = await fetchLyrics(song);
+  if (lyricsFor !== song.id) return; // cambió de canción mientras cargaba
+  if (!text) {
+    lyricsBox.replaceChildren(el("p", "empty", "No se pudo cargar la letra."));
+    lyricsFor = null;
+    return;
+  }
+  lyricLines = parseLyrics(text).map((l) => {
+    const node = el("p", l.time === null ? "" : "timed", l.text || "♪");
+    if (l.time !== null) node.addEventListener("click", () => { audio.currentTime = l.time; });
+    return { ...l, node };
+  });
+  lyricsBox.replaceChildren(...lyricLines.map((l) => l.node));
+  highlightLyric(true);
+}
+
+function highlightLyric(jump = false) {
+  if (lyricsBox.hidden || !lyricLines.length) return;
+  let idx = -1;
+  for (let i = 0; i < lyricLines.length; i++) {
+    if (lyricLines[i].time !== null && lyricLines[i].time <= audio.currentTime + 0.2) idx = i;
+  }
+  if (idx === lyricNow && !jump) return;
+  lyricNow = idx;
+  lyricLines.forEach((l, i) => l.node.classList.toggle("now", i === idx));
+  const node = lyricLines[idx]?.node;
+  if (node) lyricsBox.scrollTo({ top: node.offsetTop - lyricsBox.clientHeight / 2 + node.offsetHeight / 2, behavior: jump ? "auto" : "smooth" });
+}
+
+lyricsBtn.addEventListener("click", () => {
+  lyricsOn = !lyricsOn;
+  pref.set("lyrics", lyricsOn ? "1" : "0");
+  renderLyrics();
+});
+audio.addEventListener("timeupdate", () => highlightLyric());
+audio.addEventListener("seeked", () => highlightLyric());
 
 // El link apunta a la API, que devuelve la vista previa (portada, título) y redirige a la app.
 async function shareLink(title, text, url, label) {
@@ -2039,7 +2140,7 @@ function springBack() {
 
 npf.addEventListener("pointerdown", (e) => {
   const now = performance.now();
-  swipe = e.target.closest("button, canvas, input")
+  swipe = e.target.closest("button, canvas, input, .npf-lyrics")
     ? null
     : { x: e.clientX, y: e.clientY, mode: null, lastY: e.clientY, lastT: now, v: 0 };
 });

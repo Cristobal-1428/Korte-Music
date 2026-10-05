@@ -28,6 +28,7 @@
     <symbol id="i-repeat1" viewBox="0 0 24 24"><path d="m17 2 4 4-4 4M3 11v-1a4 4 0 0 1 4-4h14M7 22l-4-4 4-4M21 13v1a4 4 0 0 1-4 4H3M11 10h1v4"/></symbol>
     <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></symbol>
+    <symbol id="i-lyrics" viewBox="0 0 24 24"><path d="M4 6h16M4 11h16M4 16h10"/></symbol>
     <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
@@ -130,6 +131,7 @@
     </header>
 
     <div class="npf-art"><div class="npf-cover" id="npf-cover"></div></div>
+    <div class="npf-lyrics" id="npf-lyrics" hidden aria-live="off"></div>
 
     <div class="npf-meta">
       <div class="npf-info">
@@ -157,6 +159,7 @@
     </div>
 
     <div class="npf-foot">
+      <button type="button" class="npf-link" id="npf-lyrics-btn" hidden aria-pressed="false"><svg class="ic"><use href="#i-lyrics"/></svg>Letra</button>
       <button type="button" class="npf-link" id="npf-viz"><svg class="ic"><use href="#i-bars"/></svg>Visualizador</button>
       <button type="button" class="npf-link" id="npf-share"><svg class="ic"><use href="#i-share"/></svg><span id="npf-share-label">Compartir</span></button>
     </div>
@@ -183,6 +186,7 @@
       <label>Artista <input type="text" name="artist" required maxlength="200" /></label>
       <label>Nueva portada (opcional) <input type="file" name="cover" accept="image/jpeg,image/png,image/webp" /></label>
       <label class="check" id="edit-remove-wrap"><input type="checkbox" name="remove_cover" value="true" /> Quitar la portada actual</label>
+      <label>Letra (opcional) <textarea name="lyrics" rows="6" maxlength="20000" placeholder="Una frase por línea. Con tiempos: [0:12.50] frase" disabled></textarea></label>
       <p id="edit-status" role="status"></p>
       <div class="dialog-actions">
         <button type="button" class="btn-ghost" id="cancel-edit">Cancelar</button>
