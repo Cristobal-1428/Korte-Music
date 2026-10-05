@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import time
 import unicodedata
@@ -135,15 +136,29 @@ async def _read_cover(cover: UploadFile | None) -> tuple[str | None, bytes | Non
     return f"cover-{uuid.uuid4().hex}{ext}", data, ext
 
 
+def _clean_instagram(value: str) -> str | None:
+    """Acepta @usuario, usuario o un enlace de instagram.com y lo deja como enlace completo (vacío = sin Instagram)."""
+    value = value.strip()
+    if not value:
+        return None
+    match = re.fullmatch(r"(?:https?://)?(?:www\.)?instagram\.com/([A-Za-z0-9._]{1,30})/?(?:\?.*)?", value)
+    handle = match.group(1) if match else value.lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9._]{1,30}", handle):
+        raise HTTPException(400, "El Instagram debe ser un @usuario o un enlace de instagram.com")
+    return f"https://www.instagram.com/{handle}/"
+
+
 @app.post("/songs", response_model=SongRead, status_code=201, dependencies=[Depends(require_admin)])
 async def upload_song(
     title: str = Form(..., min_length=1, max_length=200),
     artist: str = Form(..., min_length=1, max_length=200),
     is_private: bool = Form(False),
+    instagram: str = Form("", max_length=200),
     file: UploadFile = File(...),
     cover: UploadFile | None = File(None),
     session: Session = Depends(get_session),
 ):
+    instagram_url = _clean_instagram(instagram)
     if is_private and not ADMIN_CONFIGURED:
         raise HTTPException(400, "Para subir canciones privadas hay que configurar ADMIN_KEY o ADMIN_EMAILS en el servidor")
     ext = Path(file.filename or "").suffix.lower()
@@ -181,6 +196,7 @@ async def upload_song(
         file_path=stored_name,
         content_type=ALLOWED_TYPES[ext],
         is_private=is_private,
+        instagram=instagram_url,
         cover_path=cover_name,
     )
     session.add(song)
@@ -194,14 +210,16 @@ async def edit_song(
     song_id: int,
     title: str = Form(..., min_length=1, max_length=200),
     artist: str = Form(..., min_length=1, max_length=200),
+    instagram: str = Form("", max_length=200),
     remove_cover: bool = Form(False),
     cover: UploadFile | None = File(None),
     session: Session = Depends(get_session),
 ):
-    """Cambia título y artista; la portada se reemplaza si llega una nueva, o se quita con remove_cover."""
+    """Cambia título, artista e Instagram; la portada se reemplaza si llega una nueva, o se quita con remove_cover."""
     song = session.get(Song, song_id)
     if song is None:
         raise HTTPException(404, "Canción no encontrada")
+    instagram_url = _clean_instagram(instagram)
     cover_name, cover_data, cover_ext = await _read_cover(cover)
     old_cover = song.cover_path
     if cover_name:
@@ -214,6 +232,7 @@ async def edit_song(
         song.cover_path = None
     song.title = title.strip()
     song.artist = artist.strip()
+    song.instagram = instagram_url
     session.add(song)
     session.commit()
     session.refresh(song)
