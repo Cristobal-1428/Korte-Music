@@ -1,7 +1,7 @@
 """Transcribe con IA (Whisper, gratis y en tu propio PC) la letra de las canciones y la guarda en la API.
 
 Instalación (una vez, aparte de requirements.txt):
-    pip install faster-whisper httpx
+    pip install faster-whisper httpx truststore
 
 Uso:
     python tools/transcribe_lyrics.py                    # solo canciones sin letra
@@ -20,6 +20,13 @@ import tempfile
 from pathlib import Path
 
 import httpx
+
+try:  # redes que reemplazan el certificado (empresa, universidad): usar los certificados de Windows
+    import truststore
+
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
 
 DEFAULT_API = "https://korte-music.onrender.com"
 
@@ -45,7 +52,7 @@ def main() -> int:
     try:
         from faster_whisper import WhisperModel
     except ImportError:
-        print("Falta faster-whisper: pip install faster-whisper httpx", file=sys.stderr)
+        print("Falta faster-whisper: pip install faster-whisper httpx truststore", file=sys.stderr)
         return 1
 
     headers = {"X-Admin-Key": key}
