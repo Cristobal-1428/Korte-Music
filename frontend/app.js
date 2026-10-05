@@ -897,6 +897,12 @@ function showArtist(name) {
     play.addEventListener("click", () => (ids.includes(currentId) ? togglePlay() : playSong(list[0].id, ids)));
     right.append(shuffle, play);
   }
+  const share = el("button", "artist-icon");
+  share.type = "button";
+  share.setAttribute("aria-label", "Compartir artista");
+  share.innerHTML = '<svg class="ic"><use href="#i-share"/></svg>';
+  share.addEventListener("click", () => shareLink(display, `${display} en Korte Music`, `${API_URL}/share/artist?name=${encodeURIComponent(display)}`));
+  right.prepend(share);
   bar.append(left, right);
   nodes.push(bar);
 
@@ -1940,19 +1946,27 @@ async function toggleLike() {
   syncNowPlaying();
 }
 
-async function shareSong() {
-  const song = currentSong();
-  if (!song) return;
-  const url = location.origin + location.pathname; // el link abre el inicio de la app
-  const label = $("npf-share-label");
+// El link apunta a la API, que devuelve la vista previa (portada, título) y redirige a la app.
+async function shareLink(title, text, url, label) {
   try {
-    if (navigator.share) await navigator.share({ title: song.title, text: `${song.title} – ${song.artist}`, url });
+    if (navigator.share) await navigator.share({ title, text, url });
     else {
       await navigator.clipboard.writeText(url);
-      label.textContent = "Link copiado";
-      setTimeout(() => (label.textContent = "Compartir"), 1500);
+      if (label) {
+        const before = label.textContent;
+        label.textContent = "Link copiado";
+        setTimeout(() => (label.textContent = before), 1500);
+      }
     }
   } catch { /* el usuario canceló el diálogo de compartir */ }
+}
+
+function shareSong() {
+  const song = currentSong();
+  if (!song) return;
+  // Las privadas no tienen vista previa pública: el link lleva al inicio.
+  const url = song.is_private ? location.origin + location.pathname : `${API_URL}/share/song/${song.id}`;
+  return shareLink(song.title, `${song.title} – ${song.artist}`, url, $("npf-share-label"));
 }
 
 document.querySelector(".np").addEventListener("click", openNowPlaying);
