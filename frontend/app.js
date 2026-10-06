@@ -1756,12 +1756,21 @@ audio.addEventListener("timeupdate", () => {
   }
   $("time-cur").textContent = formatTime(audio.currentTime);
   if (!seeking && audio.duration) seek.value = (audio.currentTime / audio.duration) * 100;
+  paintRange(seek);
 });
+
+// El relleno naranja de las barras (sin el punto) sigue al valor: se pasa a CSS como --fill.
+function paintRange(input) {
+  const min = Number(input.min) || 0;
+  const max = Number(input.max) || 100;
+  input.style.setProperty("--fill", `${((Number(input.value) - min) / (max - min)) * 100}%`);
+}
 
 let seeking = false;
 seek.addEventListener("input", () => {
   seeking = true;
   if (audio.duration) $("time-cur").textContent = formatTime((seek.value / 100) * audio.duration);
+  paintRange(seek);
 });
 seek.addEventListener("change", () => {
   if (audio.duration) audio.currentTime = (seek.value / 100) * audio.duration;
@@ -1771,7 +1780,9 @@ seek.addEventListener("change", () => {
 $("volume").addEventListener("input", (e) => {
   audio.volume = Number(e.target.value);
   setIcon($("volume-icon"), audio.volume === 0 ? "volume-off" : "volume");
+  paintRange(e.target);
 });
+paintRange($("volume"));
 
 
 /* ---------- Visualizador ---------- */

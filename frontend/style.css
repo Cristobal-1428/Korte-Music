@@ -544,7 +544,14 @@ button { cursor: pointer; }
 .vol-ic { width: 22px; height: 22px; color: var(--muted); flex: none; }
 .volume .ctrl { display: flex; align-items: center; justify-content: center; line-height: 0; } /* el botón es en línea y dejaba el icono más arriba que el parlante */
 
-input[type="range"] { accent-color: var(--accent); cursor: pointer; }
+/* Barras de progreso y volumen sin el punto: solo la línea, rellena de naranja hasta donde va (--fill). */
+input[type="range"] { -webkit-appearance: none; appearance: none; height: 16px; background: transparent; cursor: pointer; --fill: 0%; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill), rgb(255 255 255 / 0.22) var(--fill)); }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 0; height: 0; border: 0; }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: rgb(255 255 255 / 0.22); }
+input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+input[type="range"]::-moz-range-thumb { width: 0; height: 0; border: 0; background: transparent; }
+input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 
 /* ---------- Upload dialog ---------- */
 dialog {
