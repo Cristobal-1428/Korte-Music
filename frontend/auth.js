@@ -49,9 +49,23 @@ const Auth = (() => {
     }
   }
 
+  // Qué proveedores de inicio de sesión tiene activos el proyecto (se activan en el panel de Supabase). Se le pregunta a
+  // Supabase en vez de fijarlo aquí: así un botón aparece solo cuando de verdad funciona.
+  const SOCIAL = ["google", "facebook", "apple"];
+  let providersPromise = null;
+  function providers() {
+    if (!enabled) return Promise.resolve([]);
+    providersPromise ||= fetch(`${cfg.url}/auth/v1/settings`, { headers: { apikey: cfg.anonKey } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((settings) => SOCIAL.filter((name) => settings?.external?.[name]))
+      .catch(() => []);
+    return providersPromise;
+  }
+
   return {
     enabled,
     ready,
+    providers,
     get token() {
       return session?.access_token || null;
     },
@@ -77,6 +91,9 @@ const Auth = (() => {
       }
       return { data: res.data, confirm: !res.data.session };
     },
+    // Te lleva a la página del proveedor y vuelve a la app con la sesión (mismo flujo PKCE que los enlaces del correo).
+    signInWithProvider: (provider) =>
+      run(() => client.auth.signInWithOAuth({ provider, options: { redirectTo: location.origin + location.pathname } })),
     signOut: () => run(() => client.auth.signOut()),
     resetPassword: (email) =>
       run(() => client.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname })),

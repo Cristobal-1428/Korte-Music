@@ -1014,6 +1014,14 @@ html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar 
 .auth-form .big-play { justify-content: center; }
 .auth-msg { min-height: 1.2em; margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
 .auth-msg.error { color: #ff6b7d; }
+.auth-social { display: grid; gap: 10px; width: 100%; }
+.auth-social:empty { display: none; }
+.auth-or { margin: 4px 0 0; color: var(--muted); font-size: 0.9rem; }
+.auth-provider { display: flex; align-items: center; gap: 14px; width: 100%; padding: 12px 20px; border: 1px solid rgb(255 255 255 / 0.3); border-radius: 999px; background: none; color: var(--text); font-weight: 700; font-size: 0.95rem; text-align: left; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+.auth-provider:hover:not(:disabled) { background: rgb(255 255 255 / 0.07); border-color: rgb(255 255 255 / 0.55); }
+.auth-provider:disabled { opacity: 0.6; cursor: default; }
+.auth-provider svg { width: 22px; height: 22px; flex: none; }
+.auth-provider span { flex: 1; text-align: center; padding-right: 22px; } /* el texto queda centrado aunque el icono ocupe lugar */
 .auth-link { border: 0; background: none; color: var(--muted); text-decoration: underline; font-size: 0.85rem; padding: 4px; }
 .auth-link:hover { color: var(--text); }
 .account-head { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; }
