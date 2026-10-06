@@ -2118,8 +2118,11 @@ function syncNowPlaying() {
   renderLyrics();
 }
 
-function openNowPlaying() {
+// La pantalla siempre abre con la portada; la letra solo se ve si se toca "Letra" (withLyrics). El tipo se comprueba porque
+// el clic sobre la barra de abajo pasa el evento como primer argumento.
+function openNowPlaying(withLyrics = false) {
   if (currentId === null || !npf.hidden) return;
+  lyricsOn = withLyrics === true;
   npf.hidden = false;
   document.body.classList.add("npf-open");
   wakeBar();
@@ -2208,7 +2211,7 @@ function parseLyrics(text) {
 
 const lyricsBox = $("npf-lyrics");
 const lyricsBtn = $("npf-lyrics-btn");
-let lyricsOn = pref.get("lyrics", "0") === "1";
+let lyricsOn = false; // no se recuerda entre canciones ni entre aperturas: al entrar, primero la portada
 let lyricsFor = null; // id de la canción cuya letra está dibujada
 let lyricLines = []; // { time, text, node }
 let lyricNow = -1;
@@ -2272,12 +2275,9 @@ function syncLyricsButton() {
 }
 lyricsBarBtn.addEventListener("click", () => {
   if (npf.hidden) {
-    lyricsOn = true;
-    pref.set("lyrics", "1");
-    openNowPlaying();
+    openNowPlaying(true);
   } else {
     lyricsOn = !lyricsOn;
-    pref.set("lyrics", lyricsOn ? "1" : "0");
     renderLyrics();
   }
   syncLyricsButton();
@@ -2285,7 +2285,6 @@ lyricsBarBtn.addEventListener("click", () => {
 
 lyricsBtn.addEventListener("click", () => {
   lyricsOn = !lyricsOn;
-  pref.set("lyrics", lyricsOn ? "1" : "0");
   renderLyrics();
 });
 audio.addEventListener("timeupdate", () => highlightLyric());
