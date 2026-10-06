@@ -917,6 +917,13 @@ function showArtist(name) {
     edit.type = "button";
     edit.addEventListener("click", () => openArtistEdit(display));
     left.append(edit);
+    if (info) {
+      // Solo el administrador: deja el perfil en manos de una cuenta (por su correo) para que lo edite desde "Mi perfil de artista".
+      const assign = el("button", "viz-chip", "Asignar a una cuenta");
+      assign.type = "button";
+      assign.addEventListener("click", () => assignArtist(display));
+      left.append(assign);
+    }
   }
   const right = el("div", "artist-bar-right");
   if (list.length) {
@@ -1131,6 +1138,27 @@ artistForm.addEventListener("submit", async (event) => {
     submit.disabled = false;
   }
 });
+
+// Administrador: asigna el perfil a la cuenta con ese correo (correo vacío = dejarlo sin dueño).
+async function assignArtist(name) {
+  const input = prompt(`Correo de la cuenta que será dueña del perfil de ${name}.
+Déjalo vacío para quitarle el dueño actual.`);
+  if (input === null) return;
+  const email = input.trim();
+  const body = new FormData();
+  body.set("name", name);
+  body.set("email", email);
+  try {
+    const res = await adminFetch(`${API_URL}/artists/owner`, { method: "PUT", body });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo asignar el perfil");
+    }
+    alert(email ? `Listo: el perfil de ${name} ahora es de ${email}.` : `Listo: el perfil de ${name} quedó sin dueño.`);
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
 /* ---------- Cuenta ---------- */
 
