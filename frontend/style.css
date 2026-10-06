@@ -618,9 +618,9 @@ body.npf-open { overflow: hidden; }
   display: flex;
   flex-direction: column;
   gap: clamp(10px, 2.2dvh, 20px);
-  width: min(100%, 480px);
-  margin: 0 auto;
-  padding: calc(env(safe-area-inset-top) + 6px) clamp(18px, 6vw, 30px) calc(env(safe-area-inset-bottom) + 14px);
+  /* Ocupa toda la ventana (en el computador también) y deja el contenido en una columna centrada de 480 px. */
+  width: 100%;
+  padding: calc(env(safe-area-inset-top) + 6px) max(clamp(18px, 6vw, 30px), calc((100% - 480px) / 2)) calc(env(safe-area-inset-bottom) + 14px);
   background: linear-gradient(180deg, hsl(var(--h, 340) 36% 16%) 0%, #0b0b0d 52%);
   overflow-y: auto;
   animation: npf-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
