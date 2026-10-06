@@ -1629,6 +1629,7 @@ function showInPlayer(song) {
   cover.style.cssText = coverStyle(song);
   artCache.delete(song.id);
   setMediaMetadata(song);
+  syncLyricsButton();
 }
 
 let slideDir = 1; // 1: la canción nueva entra desde la derecha; -1: desde la izquierda
@@ -2022,6 +2023,7 @@ function hideNowPlaying() {
   document.body.classList.remove("npf-open");
   clearTimeout(barTimer);
   document.body.classList.remove("npf-idle");
+  syncLyricsButton();
   stopSnake();
 }
 
@@ -2112,6 +2114,7 @@ async function renderLyrics() {
   lyricsBtn.classList.toggle("on", lyricsOn);
   lyricsBtn.setAttribute("aria-pressed", String(lyricsOn));
   lyricsBox.hidden = !show;
+  syncLyricsButton();
   if (!show || lyricsFor === song.id) return;
   lyricsFor = song.id;
   lyricNow = -1;
@@ -2145,6 +2148,29 @@ function highlightLyric(jump = false) {
   const node = lyricLines[idx]?.node;
   if (node) lyricsBox.scrollTo({ top: node.offsetTop - lyricsBox.clientHeight / 2 + node.offsetHeight / 2, behavior: jump ? "auto" : "smooth" });
 }
+
+// Botón de la barra de abajo (computador): solo aparece si la canción tiene letra; abre el reproductor grande con la letra.
+const lyricsBarBtn = $("lyrics-open");
+function syncLyricsButton() {
+  const song = currentSong();
+  const has = !!song?.has_lyrics;
+  lyricsBarBtn.hidden = !has;
+  const on = has && lyricsOn && !npf.hidden;
+  lyricsBarBtn.classList.toggle("on", on);
+  lyricsBarBtn.setAttribute("aria-pressed", String(on));
+}
+lyricsBarBtn.addEventListener("click", () => {
+  if (npf.hidden) {
+    lyricsOn = true;
+    pref.set("lyrics", "1");
+    openNowPlaying();
+  } else {
+    lyricsOn = !lyricsOn;
+    pref.set("lyrics", lyricsOn ? "1" : "0");
+    renderLyrics();
+  }
+  syncLyricsButton();
+});
 
 lyricsBtn.addEventListener("click", () => {
   lyricsOn = !lyricsOn;
