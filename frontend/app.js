@@ -1048,12 +1048,15 @@ const artistDialog = $("artist-dialog");
 const artistForm = $("artist-form");
 const artistStatus = $("artist-status");
 
+let artistCreating = false; // true: el perfil propio todavía no existe y crearlo pide un código de invitación
 let artistSelf = false; // true: el diálogo edita el perfil propio de la cuenta (PUT /me/artist); false: el del administrador
 
 function openArtistEdit(name) {
   artistSelf = false;
+  artistCreating = false;
   $("artist-name-wrap").hidden = true;
   $("artist-city-wrap").hidden = true;
+  $("artist-invite-wrap").hidden = true;
   const info = artists.get(artistKey(name));
   artistForm.reset();
   artistForm.elements.name.value = name;
@@ -1083,10 +1086,13 @@ async function openMyArtist() {
     problem = "No se pudo conectar con el servidor";
   }
   artistSelf = true;
+  artistCreating = !info && !problem;
   artistForm.reset();
   const nameInput = $("artist-name-input");
   $("artist-name-wrap").hidden = false;
   $("artist-city-wrap").hidden = false;
+  $("artist-invite-wrap").hidden = !artistCreating; // el código solo se pide para crear, no para editar
+  $("artist-invite-input").value = "";
   nameInput.value = info?.name || "";
   nameInput.disabled = !!info; // el nombre queda fijo una vez creado
   artistForm.elements.bio.value = info?.bio || "";
@@ -1121,6 +1127,11 @@ artistForm.addEventListener("submit", async (event) => {
       const nameValue = $("artist-name-input").value.trim();
       if (!nameValue) throw new Error("Escribe tu nombre artístico");
       body.set("name", nameValue);
+      if (artistCreating) {
+        const code = $("artist-invite-input").value.trim();
+        if (!code) throw new Error("Escribe tu código de invitación");
+        body.set("invite_code", code);
+      }
     }
     const res = artistSelf
       ? await fetch(`${API_URL}/me/artist`, { method: "PUT", body, headers: authHeaders() })
@@ -1155,6 +1166,22 @@ Déjalo vacío para quitarle el dueño actual.`);
       throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo asignar el perfil");
     }
     alert(email ? `Listo: el perfil de ${name} ahora es de ${email}.` : `Listo: el perfil de ${name} quedó sin dueño.`);
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// Administrador: genera un código de un solo uso para que alguien pueda crear su perfil de artista.
+async function createInvite() {
+  const note = prompt("Nota para este código (opcional, por ejemplo el nombre de quien lo recibe):");
+  if (note === null) return;
+  try {
+    const body = new FormData();
+    body.set("note", note.trim());
+    const res = await fetch(`${API_URL}/admin/invites`, { method: "POST", body, headers: authHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : "No se pudo generar el código");
+    prompt("Código de invitación (cópialo con Ctrl+C y envíaselo):", data.code); // en un prompt para poder seleccionarlo y copiarlo
   } catch (e) {
     alert(e.message);
   }
@@ -1347,8 +1374,11 @@ function signedInContent() {
     const priv = el("button", "viz-chip", "Sección privada");
     priv.type = "button";
     priv.addEventListener("click", () => (location.hash = "#/private"));
+    const invite = el("button", "viz-chip", "Generar código de invitación");
+    invite.type = "button";
+    invite.addEventListener("click", createInvite);
     const actions = el("div", "actions");
-    actions.append(upload, priv);
+    actions.append(upload, priv, invite);
     nodes.push(actions);
   }
 
