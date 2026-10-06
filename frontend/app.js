@@ -1921,6 +1921,24 @@ let shuffleOn = pref.get("shuffle", "0") === "1";
 let repeatOne = pref.get("repeat", "0") === "1";
 const currentSong = () => findSong(currentId);
 
+// En el computador, con el reproductor grande abierto: si el mouse (o el teclado) no se mueve durante 5 s,
+// la barra de abajo baja y desaparece; al moverlo vuelve a subir.
+const BAR_IDLE_MS = 5000;
+let barTimer = 0;
+let overBar = false;
+function wakeBar() {
+  document.body.classList.remove("npf-idle");
+  clearTimeout(barTimer);
+  if (npf.hidden || isMobile.matches) return;
+  barTimer = setTimeout(() => {
+    if (!overBar && !npf.hidden) document.body.classList.add("npf-idle");
+    else wakeBar(); // el mouse está sobre la barra: se vuelve a contar
+  }, BAR_IDLE_MS);
+}
+for (const ev of ["mousemove", "mousedown", "keydown", "wheel"]) document.addEventListener(ev, () => !npf.hidden && wakeBar(), { passive: true });
+document.querySelector(".player").addEventListener("mouseenter", () => (overBar = true));
+document.querySelector(".player").addEventListener("mouseleave", () => ((overBar = false), wakeBar()));
+
 let npfShownId = null; // canción que muestra la pantalla de reproducción (null = cerrada)
 
 // La portada (o la letra) y el título salen deslizándose hacia un lado y la nueva entra por el otro; el fondo se funde.
@@ -1973,6 +1991,7 @@ function openNowPlaying() {
   if (currentId === null || !npf.hidden) return;
   npf.hidden = false;
   document.body.classList.add("npf-open");
+  wakeBar();
   syncNowPlaying();
   startSnake();
   history.pushState({ npf: true }, ""); // el botón "atrás" del teléfono cierra la pantalla, no la app
@@ -1982,6 +2001,8 @@ function hideNowPlaying() {
   npf.hidden = true;
   npfShownId = null;
   document.body.classList.remove("npf-open");
+  clearTimeout(barTimer);
+  document.body.classList.remove("npf-idle");
   stopSnake();
 }
 
