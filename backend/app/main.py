@@ -22,7 +22,7 @@ from sqlmodel import Session, select
 
 from . import auth, storage
 from .database import get_session, init_db
-from .models import Artist, ArtistRead, Like, Song, SongRead
+from .models import Artist, ArtistInvite, ArtistRead, Like, Song, SongRead
 from .streaming import range_response
 
 ALLOWED_TYPES = {
@@ -502,6 +502,14 @@ def _name_used_in_songs(session: Session, key: str) -> bool:
     return any(key in _credit_keys(credit) for credit in session.exec(select(Song.artist)).all())
 
 
+INVITE_ERROR = "Código de invitación inválido o ya usado"
+INVITE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"  # sin 0/O ni 1/I, que se confunden al leerlos
+
+
+def _normalize_invite(code: str) -> str:
+    return re.sub(r"[\s-]", "", code or "").upper()
+
+
 def _verified_user(user: auth.AuthUser | None) -> auth.AuthUser:
     """Exige sesión iniciada (401) y correo confirmado (403)."""
     if user is None:
@@ -527,11 +535,12 @@ async def save_my_artist(
     instagram: str = Form("", max_length=200),
     city: str = Form("", max_length=100),
     remove_image: bool = Form(False),
+    invite_code: str = Form("", max_length=64),
     image: UploadFile | None = File(None),
     user: auth.AuthUser | None = Depends(auth.current_user),
     session: Session = Depends(get_session),
 ):
-    """Crea (la primera vez) o actualiza el perfil de artista de la cuenta. El nombre queda fijo tras crearlo."""
+    """Crea (la primera vez, con un código de invitación) o actualiza el perfil de la cuenta. El nombre queda fijo."""
     user = _verified_user(user)
     name = " ".join(name.split())
     key = artist_key(name)
@@ -539,6 +548,7 @@ async def save_my_artist(
         raise HTTPException(400, "Falta el nombre artístico")
     instagram_url = _clean_instagram(instagram)
     artist = session.exec(select(Artist).where(Artist.owner_id == user.id)).first()
+    creating = artist is None
     if artist is None:
         # Un nombre ya tomado por otro perfil, o que ya aparece en canciones de la app, no se puede reclamar solo:
         # lo asigna el administrador (PUT /artists/owner).
@@ -548,11 +558,27 @@ async def save_my_artist(
     elif key != artist.key:  # mayúsculas, tildes y espacios sí pueden cambiar; el nombre en sí, no
         raise HTTPException(400, "El nombre artístico no se puede cambiar por ahora")
     image_name, image_data, image_ext = await _read_cover(image)
+    if creating:
+        # Se reclama el código con un UPDATE condicionado (solo si sigue libre) dentro de la misma transacción que el
+        # INSERT del perfil: si algo falla después (foto, nombre tomado a la vez), el rollback lo deja libre. Editar un
+        # perfil existente no pide código.
+        code = _normalize_invite(invite_code)
+        claimed = 0
+        if code:
+            claimed = session.execute(
+                update(ArtistInvite)
+                .where(ArtistInvite.code == code, ArtistInvite.used_by.is_(None))
+                .values(used_by=user.id, used_at=datetime.now(timezone.utc))
+            ).rowcount
+        if claimed != 1:
+            session.rollback()
+            raise HTTPException(403, INVITE_ERROR)  # mismo mensaje para inválido, inexistente o ya usado
     old_image = artist.image_path
     if image_name:
         try:
             await storage.save(image_name, image_data, COVER_TYPES[image_ext], private=False)
         except Exception as exc:
+            session.rollback()  # suelta el código reclamado
             raise HTTPException(502, f"No se pudo guardar la foto: {exc}")
         artist.image_path = image_name
     elif remove_image:
@@ -580,6 +606,62 @@ async def save_my_artist(
         except Exception:
             pass  # una foto vieja que no se pudo borrar no invalida el cambio
     return artist
+
+
+# ------------------------------------------------------- códigos de invitación (solo administrador)
+
+def require_admin_strict(admin: bool = Depends(admin_flag)) -> None:
+    """A diferencia de require_admin, sin administrador configurado NO deja pasar a nadie: responde 503."""
+    if not ADMIN_CONFIGURED:
+        raise HTTPException(503, "El administrador no está configurado en el servidor")
+    if not admin:
+        raise HTTPException(401, "Solo el administrador puede hacer esto")
+
+
+@app.post("/admin/invites", status_code=201, dependencies=[Depends(require_admin_strict)])
+def create_invite(note: str = Form("", max_length=200), session: Session = Depends(get_session)):
+    """Genera un código de invitación de un solo uso (8 caracteres legibles) para crear un perfil de artista."""
+    for _ in range(8):  # un choque de códigos es casi imposible; se reintenta por si acaso
+        code = "".join(secrets.choice(INVITE_ALPHABET) for _ in range(8))
+        invite = ArtistInvite(code=code, note=note.strip() or None)
+        session.add(invite)
+        try:
+            session.commit()
+        except IntegrityError:
+            session.rollback()
+            continue
+        return {"code": invite.code, "note": invite.note, "created_at": invite.created_at}
+    raise HTTPException(500, "No se pudo generar un código nuevo")
+
+
+@app.get("/admin/invites", dependencies=[Depends(require_admin_strict)])
+def list_invites(session: Session = Depends(get_session)):
+    invites = session.exec(select(ArtistInvite).order_by(ArtistInvite.created_at.desc())).all()
+    owners = {a.owner_id: a.name for a in session.exec(select(Artist).where(Artist.owner_id.is_not(None))).all()}
+    return [
+        {
+            "code": i.code,
+            "note": i.note,
+            "created_at": i.created_at,
+            "status": "usado" if i.used_by else "libre",
+            "used_by": i.used_by,
+            "used_by_artist": owners.get(i.used_by) if i.used_by else None,
+            "used_at": i.used_at,
+        }
+        for i in invites
+    ]
+
+
+@app.delete("/admin/invites/{code}", status_code=204, dependencies=[Depends(require_admin_strict)])
+def revoke_invite(code: str, session: Session = Depends(get_session)):
+    """Revoca un código que todavía no se usó."""
+    invite = session.get(ArtistInvite, _normalize_invite(code))
+    if invite is None:
+        raise HTTPException(404, "Código no encontrado")
+    if invite.used_by:
+        raise HTTPException(409, "Ese código ya se usó y no se puede revocar")
+    session.delete(invite)
+    session.commit()
 
 
 @app.put("/artists/owner", response_model=ArtistRead, dependencies=[Depends(require_admin)])

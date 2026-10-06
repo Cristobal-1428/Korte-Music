@@ -77,6 +77,16 @@ class Artist(SQLModel, table=True):
         return int(self.updated_at.timestamp())
 
 
+class ArtistInvite(SQLModel, table=True):
+    """Código de invitación de un solo uso para crear un perfil de artista propio. Lo genera el administrador."""
+
+    code: str = Field(primary_key=True)
+    note: str | None = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    used_by: str | None = None  # id de la cuenta que lo usó (NULL = libre)
+    used_at: datetime | None = None
+
+
 class ArtistRead(SQLModel):
     name: str
     bio: str | None = None
