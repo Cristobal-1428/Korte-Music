@@ -1612,7 +1612,9 @@ function showInPlayer(song) {
   setMediaMetadata(song);
 }
 
+let slideDir = 1; // 1: la canción nueva entra desde la derecha; -1: desde la izquierda
 function step(delta) {
+  slideDir = delta < 0 ? -1 : 1;
   // La cola es la lista desde la que se empezó (un artista); si no hay, la sección de la canción que suena:
   // escuchar privadas no mezcla las públicas.
   const queued = playQueue?.includes(currentId) ? playQueue.map(findSong).filter(Boolean) : null;
@@ -1919,11 +1921,34 @@ let shuffleOn = pref.get("shuffle", "0") === "1";
 let repeatOne = pref.get("repeat", "0") === "1";
 const currentSong = () => findSong(currentId);
 
+let npfShownId = null; // canción que muestra la pantalla de reproducción (null = cerrada)
+
+// La portada (o la letra) y el título salen deslizándose hacia un lado y la nueva entra por el otro; el fondo se funde.
+function slideSong() {
+  if (reducedMotion) return;
+  const from = slideDir * Math.min(160, innerWidth * 0.12);
+  for (const node of [$("npf-cover"), $("npf-lyrics"), document.querySelector(".npf-info")]) {
+    node?.animate(
+      [{ transform: `translateX(${from}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
+      { duration: 420, easing: "cubic-bezier(.2,.8,.2,1)" },
+    );
+  }
+  try {
+    npf.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 600, easing: "ease-out", pseudoElement: "::before" });
+  } catch { /* navegadores sin animación de pseudoelementos: el fondo cambia sin fundido */ }
+}
+
 function syncNowPlaying() {
   if (npf.hidden) return;
   const song = currentSong();
   if (!song) return hideNowPlaying(); // la canción se eliminó o aún no hay ninguna
   npf.style.setProperty("--h", hue(song));
+  npf.style.setProperty("--art", song.has_cover ? `url("${coverUrl(song)}")` : "none"); // el fondo difuminado
+  if (npfShownId !== song.id) {
+    if (npfShownId !== null) slideSong(); // cambió de canción con la pantalla abierta
+    npfShownId = song.id;
+    slideDir = 1;
+  }
   const cover = $("npf-cover");
   cover.textContent = initial(song);
   cover.style.cssText = coverStyle(song);
@@ -1955,6 +1980,7 @@ function openNowPlaying() {
 
 function hideNowPlaying() {
   npf.hidden = true;
+  npfShownId = null;
   document.body.classList.remove("npf-open");
   stopSnake();
 }
@@ -2220,13 +2246,6 @@ npf.addEventListener("pointerup", (e) => {
   if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
   step(dx < 0 ? 1 : -1);
   syncNowPlaying();
-  const dir = dx < 0 ? 1 : -1;
-  for (const node of [$("npf-cover"), document.querySelector(".npf-info")]) {
-    node?.animate(
-      [{ transform: `translateX(${dir * 40}px)`, opacity: 0 }, { transform: "none", opacity: 1 }],
-      { duration: 220, easing: "ease-out" },
-    );
-  }
 });
 $("npf-shuffle").addEventListener("click", () => {
   shuffleOn = !shuffleOn;

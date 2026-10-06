@@ -628,12 +628,24 @@ body.npf-open { overflow: hidden; }
   /* Ocupa toda la ventana (en el computador también) y deja el contenido en una columna centrada de 480 px. */
   width: 100%;
   padding: calc(env(safe-area-inset-top) + 6px) max(clamp(18px, 6vw, 30px), calc((100% - 480px) / 2)) calc(env(safe-area-inset-bottom) + 14px);
-  background: linear-gradient(180deg, hsl(var(--h, 340) 36% 16%) 0%, #0b0b0d 52%);
+  background: linear-gradient(180deg, hsl(var(--h, 340) 58% 27%) 0%, hsl(var(--h, 340) 42% 13%) 48%, #0b0b0d 100%);
+  isolation: isolate;
   overflow-y: auto;
   animation: npf-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;
 }
 .nowplaying[hidden] { display: none; }
+/* La portada de la canción, muy difuminada, detrás de todo: da el color y se nota el cambio de canción. */
+.nowplaying::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  background: var(--art, none) center / cover no-repeat;
+  filter: blur(70px) saturate(1.5) brightness(0.9);
+  opacity: 0.6;
+  pointer-events: none;
+}
 .nowplaying { touch-action: none; } /* los gestos (deslizar a los lados / hacia abajo) los maneja la app */
 @keyframes npf-in { from { transform: translateY(100%); } } /* entra desde abajo, como una hoja */
 .nowplaying.dragging { border-radius: 20px 20px 0 0; } /* mientras baja se ve la hoja con esquinas redondeadas */
