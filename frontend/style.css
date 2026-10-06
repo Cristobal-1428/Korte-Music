@@ -699,13 +699,14 @@ body.npf-open { overflow: hidden; }
 .npf-link:active { color: #fff; }
 @media (prefers-reduced-motion: reduce) { .nowplaying { animation: none; } }
 
-/* Reproductor a pantalla completa en el computador: portada grande al centro, título abajo a la izquierda,
-   barra de progreso y controles en el centro, y los accesos (letra, visualizador, compartir) a la derecha. */
+/* Reproductor a pantalla completa en el computador: portada grande al centro y título abajo a la izquierda;
+   los accesos (letra, visualizador, compartir) abajo a la derecha. Deja libre la barra de reproducción de abajo. */
 @media (min-width: 801px) {
   .nowplaying {
     display: grid;
+    bottom: var(--player-h); /* la barra de abajo (controles, progreso, volumen) sigue visible y es la que manda */
     grid-template-columns: minmax(0, 1fr) minmax(320px, 560px) minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     column-gap: 32px;
     row-gap: clamp(8px, 1.6dvh, 16px);
     padding: 14px clamp(28px, 4vw, 64px) 26px;
@@ -716,13 +717,12 @@ body.npf-open { overflow: hidden; }
   .npf-art { grid-column: 1 / -1; grid-row: 2; min-height: 0; }
   .npf-lyrics { grid-column: 2; grid-row: 2; min-height: 0; }
   .npf-cover { border-radius: 14px; }
-  .npf-meta { grid-column: 1; grid-row: 3 / 5; align-self: end; align-items: flex-end; justify-content: flex-start; }
+  .npf-meta { grid-column: 1; grid-row: 3; align-self: end; align-items: flex-end; justify-content: flex-start; }
   .npf-meta .npf-info { flex: 0 1 auto; }
   .npf-info h2 { font-size: clamp(1.5rem, 2.4vw, 2.2rem); }
   .npf-info p { font-size: clamp(0.95rem, 1.2vw, 1.15rem); }
-  .npf-seek { grid-column: 2; grid-row: 3; align-self: end; }
-  .npf-controls { grid-column: 2; grid-row: 4; }
-  .npf-foot { grid-column: 3; grid-row: 3 / 5; align-self: end; justify-self: end; flex-direction: column; align-items: flex-end; gap: 6px; }
+  .npf-seek, .npf-controls { display: none; } /* ya están en la barra de abajo */
+  .npf-foot { grid-column: 3; grid-row: 3; align-self: end; justify-self: end; flex-direction: column; align-items: flex-end; gap: 6px; }
   .nowplaying.show-lyrics .npf-meta { justify-content: flex-start; }
   .nowplaying.show-lyrics .npf-info { display: block; } /* en el computador el título va abajo; no hace falta ocultarlo */
 }
