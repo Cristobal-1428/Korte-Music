@@ -741,6 +741,7 @@ body.npf-open { overflow: hidden; }
   .npf-info h2 { font-size: clamp(1.5rem, 2.4vw, 2.2rem); }
   .npf-info p { font-size: clamp(0.95rem, 1.2vw, 1.15rem); }
   .npf-seek, .npf-controls { display: none; } /* ya están en la barra de abajo */
+  .npf-like, #npf-plays { display: none; } /* en el computador no se muestran el me gusta ni las reproducciones */
   .npf-foot { display: none; } /* en el computador no se muestran Letra, Visualizador ni Compartir */
   .nowplaying.show-lyrics .npf-meta { justify-content: flex-start; }
   .nowplaying.show-lyrics .npf-info { display: block; } /* en el computador el título va abajo; no hace falta ocultarlo */
