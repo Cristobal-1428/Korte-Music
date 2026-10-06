@@ -388,7 +388,7 @@ function visibleSongs() {
 
 // Marca la sección activa en el menú lateral y en la barra de abajo.
 function setNav(active) {
-  for (const section of ["home", "search", "private", "artists", "account", "library"]) {
+  for (const section of ["home", "search", "private", "artists", "account", "library", "songs"]) {
     for (const prefix of ["nav-", "tab-"]) $(prefix + section)?.classList.toggle("active", section === active);
   }
 }
@@ -408,7 +408,7 @@ function route() {
   }
   const hash = location.hash;
   setNav(
-    hash === "#/private" ? "private" : hash === "#/search" ? "search" : hash === "#/account" ? "account" : hash === "#/library" ? "library" : hash.startsWith("#/artist") ? "artists" : hash.startsWith("#/song/") && !isMobile.matches ? null : "home",
+    hash === "#/private" ? "private" : hash === "#/search" ? "search" : hash === "#/account" ? "account" : hash === "#/library" ? "library" : hash === "#/songs" ? "songs" : hash.startsWith("#/artist") ? "artists" : hash.startsWith("#/song/") && !isMobile.matches ? null : "home",
   );
   if (hash === "#/private") return showPrivate();
   const artistMatch = hash.match(/^#\/artist\/(.+)$/);
@@ -417,6 +417,7 @@ function route() {
   if (hash === "#/search") return showSearch();
   if (hash === "#/account") return showAccount();
   if (hash === "#/library") return showLibrary();
+  if (hash === "#/songs") return showSongs();
   const match = location.hash.match(/^#\/song\/(\d+)$/);
   const song = match && songs.find((s) => s.id === Number(match[1]));
   if (song && isMobile.matches) {
@@ -1301,6 +1302,28 @@ function showLibrary() {
     } else {
       box.append(el("p", "empty", "Aún no has dado me gusta. Toca el corazón en el reproductor."));
     }
+  }
+  view.replaceChildren(box);
+  main.scrollTop = 0;
+  refreshPlays();
+  markActive();
+  updatePlayState();
+}
+
+/* ---------- Canciones ---------- */
+
+function showSongs() {
+  leaveStage();
+  main.style.setProperty("--tint", "hsl(16 40% 16%)");
+  const box = el("section", "library-page");
+  box.append(el("h1", "page-title", "Canciones"));
+  if (songs.length) {
+    const ids = songs.map((s) => s.id);
+    const rows = el("div", "m-rows");
+    rows.append(...songs.map((s) => makeRow(s, ids)));
+    box.append(el("h2", "m-section", `${songs.length} ${songs.length === 1 ? "canción" : "canciones"}`), rows);
+  } else {
+    box.append(el("p", "empty", "Todavía no hay canciones."));
   }
   view.replaceChildren(box);
   main.scrollTop = 0;
