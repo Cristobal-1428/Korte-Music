@@ -1881,6 +1881,7 @@ function syncViz() {
 }
 
 function openViz() {
+  closeNowPlaying(); // el reproductor grande tapa la zona donde se dibuja el visualizador
   viz.hidden = false; // el canvas necesita tamaño antes de iniciar
   Visualizer.attach(audio);
   syncViz();
