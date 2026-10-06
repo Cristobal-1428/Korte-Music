@@ -4,3 +4,6 @@ __pycache__/
 backend/uploads/*
 !backend/uploads/.gitkeep
 node_modules/
+
+# Letras de trabajo para el script de transcripción (no se suben al repositorio público)
+letra-*.txt
