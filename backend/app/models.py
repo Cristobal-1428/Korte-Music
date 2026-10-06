@@ -61,6 +61,9 @@ class Artist(SQLModel, table=True):
     name: str
     bio: str | None = None
     instagram: str | None = None
+    city: str | None = None
+    # Cuenta (Supabase Auth) dueña del perfil; NULL = perfil curado por el administrador. Una cuenta, un perfil.
+    owner_id: str | None = Field(default=None, index=True, unique=True)
     image_path: str | None = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -78,6 +81,7 @@ class ArtistRead(SQLModel):
     name: str
     bio: str | None = None
     instagram: str | None = None
+    city: str | None = None
     has_image: bool = False
     version: int = 0
 

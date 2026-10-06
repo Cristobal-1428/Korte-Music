@@ -49,9 +49,13 @@ def init_db() -> None:
             with engine.begin() as conn:
                 conn.execute(text(f"ALTER TABLE song ADD COLUMN {column} {definition}"))
     existing_artist = {c["name"] for c in inspect(engine).get_columns("artist")}
-    if "instagram" not in existing_artist:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE artist ADD COLUMN instagram VARCHAR"))
+    for column in ("instagram", "city", "owner_id"):
+        if column not in existing_artist:
+            with engine.begin() as conn:
+                conn.execute(text(f"ALTER TABLE artist ADD COLUMN {column} VARCHAR"))
+    # Un perfil por cuenta. Los NULL (perfiles del administrador) no chocan entre sí.
+    with engine.begin() as conn:
+        conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_artist_owner_id ON artist (owner_id)"))
 
 
 def get_session():

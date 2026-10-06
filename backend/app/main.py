@@ -490,6 +490,86 @@ async def delete_artist(name: str = Query(...), session: Session = Depends(get_s
     session.commit()
 
 
+# ------------------------------------------------------- perfil de artista propio (una cuenta, un perfil)
+
+def _verified_user(user: auth.AuthUser | None) -> auth.AuthUser:
+    """Exige sesión iniciada (401) y correo confirmado (403)."""
+    if user is None:
+        raise HTTPException(401, "Inicia sesión para continuar")
+    if not user.email_confirmed:
+        raise HTTPException(403, "Confirma tu correo para crear tu perfil de artista")
+    return user
+
+
+@app.get("/me/artist", response_model=ArtistRead)
+def my_artist(user: auth.AuthUser | None = Depends(auth.current_user), session: Session = Depends(get_session)):
+    user = _verified_user(user)
+    artist = session.exec(select(Artist).where(Artist.owner_id == user.id)).first()
+    if artist is None:
+        raise HTTPException(404, "Todavía no tienes un perfil de artista")
+    return artist
+
+
+@app.put("/me/artist", response_model=ArtistRead)
+async def save_my_artist(
+    name: str = Form(..., min_length=1, max_length=200),
+    bio: str = Form("", max_length=2000),
+    instagram: str = Form("", max_length=200),
+    city: str = Form("", max_length=100),
+    remove_image: bool = Form(False),
+    image: UploadFile | None = File(None),
+    user: auth.AuthUser | None = Depends(auth.current_user),
+    session: Session = Depends(get_session),
+):
+    """Crea (la primera vez) o actualiza el perfil de artista de la cuenta. El nombre queda fijo tras crearlo."""
+    user = _verified_user(user)
+    name = " ".join(name.split())
+    key = artist_key(name)
+    if not key:
+        raise HTTPException(400, "Falta el nombre artístico")
+    instagram_url = _clean_instagram(instagram)
+    artist = session.exec(select(Artist).where(Artist.owner_id == user.id)).first()
+    if artist is None:
+        if session.exec(select(Artist).where(Artist.key == key)).first() is not None:
+            raise HTTPException(409, "Ese nombre artístico ya está en uso")
+        artist = Artist(key=key, name=name, owner_id=user.id)
+    elif key != artist.key:  # mayúsculas, tildes y espacios sí pueden cambiar; el nombre en sí, no
+        raise HTTPException(400, "El nombre artístico no se puede cambiar por ahora")
+    image_name, image_data, image_ext = await _read_cover(image)
+    old_image = artist.image_path
+    if image_name:
+        try:
+            await storage.save(image_name, image_data, COVER_TYPES[image_ext], private=False)
+        except Exception as exc:
+            raise HTTPException(502, f"No se pudo guardar la foto: {exc}")
+        artist.image_path = image_name
+    elif remove_image:
+        artist.image_path = None
+    artist.name = name
+    artist.bio = bio.replace("\r\n", "\n").strip() or None
+    artist.instagram = instagram_url
+    artist.city = " ".join(city.split()) or None
+    artist.updated_at = datetime.now(timezone.utc)
+    session.add(artist)
+    try:
+        session.commit()
+    except IntegrityError:  # otra petición tomó el nombre (o ya creó el perfil de esta cuenta) justo antes
+        session.rollback()
+        if image_name:
+            try:
+                await storage.delete(image_name, private=False)
+            except Exception:
+                pass
+        raise HTTPException(409, "Ese nombre artístico ya está en uso")
+    session.refresh(artist)
+    if old_image and old_image != artist.image_path:
+        try:
+            await storage.delete(old_image, private=False)
+        except Exception:
+            pass  # una foto vieja que no se pudo borrar no invalida el cambio
+    return artist
+
+
 @app.get("/artists/image")
 async def artist_image(name: str = Query(...), session: Session = Depends(get_session)):
     artist = session.exec(select(Artist).where(Artist.key == artist_key(name))).first()
