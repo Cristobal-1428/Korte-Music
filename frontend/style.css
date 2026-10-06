@@ -749,7 +749,15 @@ body.npf-open { overflow: hidden; }
   .npf-top { grid-column: 1 / -1; grid-row: 1; }
   .npf-art { grid-column: 1 / -1; grid-row: 2; min-height: 0; }
   .npf-lyrics { grid-column: 2; grid-row: 2; min-height: 0; }
-  .npf-cover { border-radius: 14px; }
+  .npf-cover {
+    border-radius: 14px;
+    /* Se inclina hacia el cursor (--rx / --ry los pone app.js). */
+    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+    transition: --rx 0.2s ease-out, --ry 0.2s ease-out, box-shadow 0.3s;
+    will-change: transform;
+  }
+  .npf-cover:hover { box-shadow: 0 28px 60px rgb(0 0 0 / 0.55); }
+  @media (prefers-reduced-motion: reduce) { .npf-cover { transform: none; } }
   .npf-meta { grid-column: 1; grid-row: 3; align-self: end; align-items: flex-end; justify-content: flex-start; }
   .npf-meta .npf-info { flex: 0 1 auto; }
   .npf-info h2 { font-size: clamp(1.5rem, 2.4vw, 2.2rem); }

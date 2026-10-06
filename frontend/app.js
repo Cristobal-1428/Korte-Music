@@ -471,7 +471,7 @@ function makeCard(song) {
 const TILT_DEG = 9;
 document.addEventListener("pointermove", (e) => {
   if (e.pointerType !== "mouse") return;
-  const card = e.target instanceof Element ? e.target.closest(".card, .rec.active") : null;
+  const card = e.target instanceof Element ? e.target.closest(".card, .rec.active, .npf-cover") : null;
   if (!card) return;
   const r = (card.querySelector(".rec-sleeve") || card).getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width - 0.5; // -0.5 (izquierda) .. 0.5 (derecha)
@@ -480,7 +480,7 @@ document.addEventListener("pointermove", (e) => {
   card.style.setProperty("--rx", `${(-y * 2 * TILT_DEG).toFixed(2)}deg`);
 });
 document.addEventListener("pointerout", (e) => {
-  const card = e.target instanceof Element ? e.target.closest(".card, .rec.active") : null;
+  const card = e.target instanceof Element ? e.target.closest(".card, .rec.active, .npf-cover") : null;
   if (!card || card.contains(e.relatedTarget)) return;
   card.style.removeProperty("--rx");
   card.style.removeProperty("--ry");
