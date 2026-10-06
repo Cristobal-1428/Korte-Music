@@ -18,6 +18,8 @@ AUTH_APIKEY = (os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_SERVICE_KEY
 # Correos con permiso de administrador (separados por comas). Además el correo debe estar confirmado.
 ADMIN_EMAILS = {e.strip().lower() for e in os.getenv("ADMIN_EMAILS", "").split(",") if e.strip()}
 ENABLED = bool(AUTH_URL and AUTH_APIKEY)
+# Clave secreta del proyecto: solo la usa el administrador para buscar una cuenta por su correo.
+SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY", "").strip()
 
 CACHE_SECONDS = 60
 
@@ -76,3 +78,39 @@ async def current_user(authorization: str | None = Header(default=None)) -> Auth
     if scheme.lower() != "bearer" or not token.strip():
         return None
     return await user_from_token(token.strip())
+
+
+class AccountLookupError(Exception):
+    """No se pudo consultar la lista de cuentas (falta la clave secreta o Supabase no respondió)."""
+
+
+async def find_user_by_email(email: str) -> AuthUser | None:
+    """Busca una cuenta por su correo (API de administración de Supabase). None si no existe."""
+    if not (AUTH_URL and SERVICE_KEY):
+        raise AccountLookupError("No se pueden buscar cuentas: falta SUPABASE_SERVICE_KEY en el servidor")
+    wanted = email.strip().lower()
+    per_page = 200
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            for page in range(1, 26):  # hasta 5.000 cuentas
+                res = await client.get(
+                    f"{AUTH_URL}/auth/v1/admin/users",
+                    params={"page": page, "per_page": per_page},
+                    headers={"apikey": SERVICE_KEY, "Authorization": f"Bearer {SERVICE_KEY}"},
+                )
+                if res.status_code != 200:
+                    raise AccountLookupError(f"Supabase respondió {res.status_code} al buscar la cuenta")
+                data = res.json()
+                users = data.get("users", []) if isinstance(data, dict) else data
+                for u in users:
+                    if (u.get("email") or "").strip().lower() == wanted:
+                        return AuthUser(
+                            id=u["id"],
+                            email=u.get("email"),
+                            email_confirmed=bool(u.get("email_confirmed_at") or u.get("confirmed_at")),
+                        )
+                if len(users) < per_page:
+                    break
+    except httpx.HTTPError as exc:
+        raise AccountLookupError(f"No se pudo consultar Supabase: {exc}") from exc
+    return None

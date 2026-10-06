@@ -492,6 +492,16 @@ async def delete_artist(name: str = Query(...), session: Session = Depends(get_s
 
 # ------------------------------------------------------- perfil de artista propio (una cuenta, un perfil)
 
+def _credit_keys(text: str) -> set[str]:
+    """Artistas acreditados en una canción: "A FT B, C & D x E" -> sus nombres normalizados (igual que el frontend)."""
+    parts = re.split(r"\s*(?:,|&|\s+x\s+|\bfeat(?:uring)?\.?(?=\s)|\bft\.?(?=\s))\s*", text, flags=re.IGNORECASE)
+    return {artist_key(p) for p in parts if p.strip()}
+
+
+def _name_used_in_songs(session: Session, key: str) -> bool:
+    return any(key in _credit_keys(credit) for credit in session.exec(select(Song.artist)).all())
+
+
 def _verified_user(user: auth.AuthUser | None) -> auth.AuthUser:
     """Exige sesión iniciada (401) y correo confirmado (403)."""
     if user is None:
@@ -530,7 +540,9 @@ async def save_my_artist(
     instagram_url = _clean_instagram(instagram)
     artist = session.exec(select(Artist).where(Artist.owner_id == user.id)).first()
     if artist is None:
-        if session.exec(select(Artist).where(Artist.key == key)).first() is not None:
+        # Un nombre ya tomado por otro perfil, o que ya aparece en canciones de la app, no se puede reclamar solo:
+        # lo asigna el administrador (PUT /artists/owner).
+        if session.exec(select(Artist).where(Artist.key == key)).first() is not None or _name_used_in_songs(session, key):
             raise HTTPException(409, "Ese nombre artístico ya está en uso")
         artist = Artist(key=key, name=name, owner_id=user.id)
     elif key != artist.key:  # mayúsculas, tildes y espacios sí pueden cambiar; el nombre en sí, no
@@ -567,6 +579,43 @@ async def save_my_artist(
             await storage.delete(old_image, private=False)
         except Exception:
             pass  # una foto vieja que no se pudo borrar no invalida el cambio
+    return artist
+
+
+@app.put("/artists/owner", response_model=ArtistRead, dependencies=[Depends(require_admin)])
+async def set_artist_owner(
+    name: str = Form(..., min_length=1, max_length=200),
+    email: str = Form("", max_length=200),
+    session: Session = Depends(get_session),
+):
+    """El administrador asigna un perfil existente a una cuenta (por su correo), o lo deja sin dueño (correo vacío)."""
+    artist = session.exec(select(Artist).where(Artist.key == artist_key(name))).first()
+    if artist is None:
+        raise HTTPException(404, "Perfil no encontrado")
+    email = email.strip()
+    if not email:
+        artist.owner_id = None
+    else:
+        try:
+            found = await auth.find_user_by_email(email)
+        except auth.AccountLookupError as exc:
+            raise HTTPException(503, str(exc))
+        if found is None:
+            raise HTTPException(404, "No existe una cuenta con ese correo")
+        if not found.email_confirmed:
+            raise HTTPException(400, "Esa cuenta todavía no confirmó su correo")
+        other = session.exec(select(Artist).where(Artist.owner_id == found.id, Artist.id != artist.id)).first()
+        if other is not None:
+            raise HTTPException(409, f"Esa cuenta ya tiene su propio perfil de artista ({other.name})")
+        artist.owner_id = found.id
+    artist.updated_at = datetime.now(timezone.utc)
+    session.add(artist)
+    try:
+        session.commit()
+    except IntegrityError:
+        session.rollback()
+        raise HTTPException(409, "Esa cuenta ya tiene su propio perfil de artista")
+    session.refresh(artist)
     return artist
 
 
