@@ -1852,7 +1852,7 @@ $("viz-full").addEventListener("click", () => {
 });
 document.addEventListener("keydown", (e) => {
   // Bandeja del inicio: flechas para pasar de disco (si el visualizador a pantalla completa no está abierto).
-  if (viz.hidden && deck && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !(e.target instanceof HTMLInputElement)) {
+  if (viz.hidden && deck && (e.key === "ArrowRight" || e.key === "ArrowLeft") && !(e.target instanceof HTMLInputElement) && (currentId === null || e.shiftKey)) {
     deckGo(deck.index + (e.key === "ArrowRight" ? 1 : -1));
     return;
   }
@@ -2203,6 +2203,31 @@ $("npf-repeat").addEventListener("click", () => {
 });
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !npf.hidden) closeNowPlaying();
+});
+
+// Atajos de teclado (computador): Espacio pausa o reanuda; ← y → atrasan o adelantan 5 s.
+const SEEK_KEY_SECONDS = 5;
+document.addEventListener("keydown", (e) => {
+  const isSpace = e.key === " " || e.code === "Space";
+  const isArrow = e.key === "ArrowLeft" || e.key === "ArrowRight";
+  if (!isSpace && !isArrow) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.defaultPrevented || e.repeat && isSpace) return;
+  if (currentId === null) return; // no hay canción cargada
+  const target = e.target instanceof Element ? e.target : document.body;
+  // Escribiendo, eligiendo en una lista, con un cuadro de diálogo o el menú abiertos: las teclas son de ellos.
+  if (target.closest("textarea, select, [contenteditable], dialog[open], #song-menu")) return;
+  const input = target.closest("input");
+  if (input && input.type !== "range") return;
+  if (isArrow) {
+    if (input || target === snakeCanvas) return; // las barras de progreso y volumen ya manejan sus flechas
+    if (!viz.hidden || e.shiftKey) return; // el visualizador y la bandeja usan las flechas para cambiar de modelo o disco
+    if (!Number.isFinite(audio.duration)) return;
+    e.preventDefault();
+    audio.currentTime = Math.min(audio.duration, Math.max(0, audio.currentTime + (e.key === "ArrowRight" ? SEEK_KEY_SECONDS : -SEEK_KEY_SECONDS)));
+    return;
+  }
+  e.preventDefault(); // evita que el espacio baje la página o active el botón que tenía el foco
+  togglePlay();
 });
 
 /* ---------- La serpiente: barra de progreso ---------- */
