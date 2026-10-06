@@ -166,8 +166,8 @@ button { cursor: pointer; }
 }
 
 /* Ángulos de la inclinación al pasar el mouse: registrados para que cambien con suavidad. */
-@property --rx { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
-@property --ry { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --tilt-x { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --tilt-y { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
 
 .card, #library-list li { user-select: none; } /* el doble clic no debe seleccionar texto */
 .card {
@@ -176,9 +176,9 @@ button { cursor: pointer; }
   border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, --rx 0.2s ease-out, --ry 0.2s ease-out;
-  /* Al pasar el mouse se inclina hacia donde está el cursor y se levanta (--rx / --ry los pone el JS). */
-  transform: perspective(800px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px));
+  transition: background 0.15s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, --tilt-x 0.2s ease-out, --tilt-y 0.2s ease-out;
+  /* Al pasar el mouse se inclina hacia donde está el cursor y se levanta (--tilt-x / --tilt-y los pone el JS). */
+  transform: perspective(800px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) translateY(var(--lift, 0px));
   will-change: transform;
 }
 .card:hover { background: var(--panel-hover); --lift: -6px; box-shadow: 0 18px 36px rgb(0 0 0 / 0.45); z-index: 2; }
@@ -457,8 +457,8 @@ button { cursor: pointer; }
 }
 .rec.active .rec-inner {
   /* El disco del centro se inclina hacia el cursor; el latido (--pulse) lo sigue fijando app.js. */
-  transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(var(--pulse, 1));
-  transition: --rx 0.2s ease-out, --ry 0.2s ease-out;
+  transform: perspective(1100px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg)) scale(var(--pulse, 1));
+  transition: --tilt-x 0.2s ease-out, --tilt-y 0.2s ease-out;
 }
 @media (prefers-reduced-motion: reduce), (hover: none) { .rec.active .rec-inner { transform: scale(var(--pulse, 1)); } }
 
@@ -754,9 +754,9 @@ body.npf-open { overflow: hidden; }
   .npf-lyrics { grid-column: 2; grid-row: 2; min-height: 0; }
   .npf-cover {
     border-radius: 14px;
-    /* Se inclina hacia el cursor (--rx / --ry los pone app.js). */
-    transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
-    transition: --rx 0.2s ease-out, --ry 0.2s ease-out, box-shadow 0.3s;
+    /* Se inclina hacia el cursor (--tilt-x / --tilt-y los pone app.js). */
+    transform: perspective(1000px) rotateX(var(--tilt-x, 0deg)) rotateY(var(--tilt-y, 0deg));
+    transition: --tilt-x 0.2s ease-out, --tilt-y 0.2s ease-out, box-shadow 0.3s;
     will-change: transform;
   }
   .npf-cover:hover { box-shadow: 0 28px 60px rgb(0 0 0 / 0.55); }

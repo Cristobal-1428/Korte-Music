@@ -476,14 +476,14 @@ document.addEventListener("pointermove", (e) => {
   const r = (card.querySelector(".rec-sleeve") || card).getBoundingClientRect();
   const x = (e.clientX - r.left) / r.width - 0.5; // -0.5 (izquierda) .. 0.5 (derecha)
   const y = (e.clientY - r.top) / r.height - 0.5;
-  card.style.setProperty("--ry", `${(x * 2 * TILT_DEG).toFixed(2)}deg`);
-  card.style.setProperty("--rx", `${(-y * 2 * TILT_DEG).toFixed(2)}deg`);
+  card.style.setProperty("--tilt-y", `${(x * 2 * TILT_DEG).toFixed(2)}deg`);
+  card.style.setProperty("--tilt-x", `${(-y * 2 * TILT_DEG).toFixed(2)}deg`);
 });
 document.addEventListener("pointerout", (e) => {
   const card = e.target instanceof Element ? e.target.closest(".card, .rec.active, .npf-cover") : null;
   if (!card || card.contains(e.relatedTarget)) return;
-  card.style.removeProperty("--rx");
-  card.style.removeProperty("--ry");
+  card.style.removeProperty("--tilt-x");
+  card.style.removeProperty("--tilt-y");
 });
 
 function renderLibrary() {
