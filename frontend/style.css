@@ -645,6 +645,7 @@ body.npf-open { overflow: hidden; }
   padding: calc(env(safe-area-inset-top) + 6px) max(clamp(18px, 6vw, 30px), calc((100% - 480px) / 2)) calc(env(safe-area-inset-bottom) + 14px);
   background: linear-gradient(180deg, hsl(var(--h, 340) 58% 27%) 0%, hsl(var(--h, 340) 42% 13%) 48%, #0b0b0d 100%);
   isolation: isolate;
+  overflow-x: hidden;
   overflow-y: auto;
   animation: npf-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
   will-change: transform;
@@ -654,11 +655,11 @@ body.npf-open { overflow: hidden; }
 .nowplaying::before {
   content: "";
   position: absolute;
-  inset: -12%;
+  inset: 0; /* sin salirse del cuadro: antes creaba desplazamiento (barra horizontal) en el celular */
   z-index: -1;
-  background: var(--art, none) center / cover no-repeat;
-  filter: blur(70px) saturate(1.5) brightness(0.9);
-  opacity: 0.6;
+  background: var(--art, none) center / 135% auto no-repeat;
+  filter: blur(48px) saturate(1.6) brightness(1);
+  opacity: 0.8;
   pointer-events: none;
 }
 .nowplaying { touch-action: none; } /* los gestos (deslizar a los lados / hacia abajo) los maneja la app */
