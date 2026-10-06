@@ -907,6 +907,7 @@ function showArtist(name) {
       `${playsText(totalPlays)} · ${list.length} ${list.length === 1 ? "canción" : "canciones"} · ${totalLikes} me gusta`,
     ),
   );
+  if (info?.city) nodes.push(el("p", "artist-city", info.city));
 
   // Barra de acciones: a la izquierda editar (solo con la clave); a la derecha aleatorio y el botón grande de play.
   const bar = el("div", "artist-bar");
@@ -1040,7 +1041,12 @@ const artistDialog = $("artist-dialog");
 const artistForm = $("artist-form");
 const artistStatus = $("artist-status");
 
+let artistSelf = false; // true: el diálogo edita el perfil propio de la cuenta (PUT /me/artist); false: el del administrador
+
 function openArtistEdit(name) {
+  artistSelf = false;
+  $("artist-name-wrap").hidden = true;
+  $("artist-city-wrap").hidden = true;
   const info = artists.get(artistKey(name));
   artistForm.reset();
   artistForm.elements.name.value = name;
@@ -1053,6 +1059,39 @@ function openArtistEdit(name) {
   artistDialog.showModal();
 }
 $("cancel-artist").addEventListener("click", () => artistDialog.close());
+
+// Perfil de artista propio: cualquier cuenta con correo confirmado puede crear y editar UNO.
+// fetch normal con authHeaders() (no adminFetch: ante un 401 este pediría la clave de administrador).
+async function openMyArtist() {
+  let info = null;
+  let problem = "";
+  try {
+    const res = await fetch(`${API_URL}/me/artist`, { headers: authHeaders() });
+    if (res.ok) info = await res.json();
+    else if (res.status !== 404) {
+      const err = await res.json().catch(() => ({}));
+      problem = typeof err.detail === "string" ? err.detail : "No se pudo cargar tu perfil";
+    }
+  } catch {
+    problem = "No se pudo conectar con el servidor";
+  }
+  artistSelf = true;
+  artistForm.reset();
+  const nameInput = $("artist-name-input");
+  $("artist-name-wrap").hidden = false;
+  $("artist-city-wrap").hidden = false;
+  nameInput.value = info?.name || "";
+  nameInput.disabled = !!info; // el nombre queda fijo una vez creado
+  artistForm.elements.bio.value = info?.bio || "";
+  artistForm.elements.instagram.value = info?.instagram || "";
+  artistForm.elements.city.value = info?.city || "";
+  $("artist-remove-wrap").hidden = !info?.has_image;
+  $("artist-dialog-title").textContent = info ? "Mi perfil de artista" : "Crear mi perfil de artista";
+  artistStatus.className = problem ? "error" : "";
+  artistStatus.textContent = problem;
+  $("submit-artist").disabled = !!problem; // sin saber si ya existe, guardar podría crear uno por error
+  artistDialog.showModal();
+}
 
 artistForm.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -1071,7 +1110,14 @@ artistForm.addEventListener("submit", async (event) => {
         throw new Error("No se pudo leer la imagen");
       }
     }
-    const res = await adminFetch(`${API_URL}/artists`, { method: "PUT", body });
+    if (artistSelf) {
+      const nameValue = $("artist-name-input").value.trim();
+      if (!nameValue) throw new Error("Escribe tu nombre artístico");
+      body.set("name", nameValue);
+    }
+    const res = artistSelf
+      ? await fetch(`${API_URL}/me/artist`, { method: "PUT", body, headers: authHeaders() })
+      : await adminFetch(`${API_URL}/artists`, { method: "PUT", body });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(typeof err.detail === "string" ? err.detail : "No se pudo guardar el perfil");
@@ -1284,6 +1330,13 @@ function signedInContent() {
   const likesRow = el("div", "actions");
   likesRow.append(likes);
   nodes.push(likesRow);
+
+  const myArtist = el("button", "viz-chip", "Mi perfil de artista");
+  myArtist.type = "button";
+  myArtist.addEventListener("click", openMyArtist);
+  const myArtistRow = el("div", "actions");
+  myArtistRow.append(myArtist);
+  nodes.push(myArtistRow);
 
   const out = el("button", "viz-chip", "Cerrar sesión");
   out.type = "button";
