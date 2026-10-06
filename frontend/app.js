@@ -1767,18 +1767,17 @@ function coverArt(song) {
   const canvas = document.createElement("canvas");
   canvas.width = canvas.height = size;
   const g = canvas.getContext("2d");
-  const h = hue(song);
+  // Siempre el naranja de la marca (#ff4d1f) con la inicial en el color oscuro del logo: la tarjeta de notificación
+  // del sistema toma sus colores de esta imagen cuando la canción no tiene portada.
   const gradient = g.createLinearGradient(0, 0, size, size);
-  gradient.addColorStop(0, `hsl(${h} 70% 45%)`);
-  gradient.addColorStop(1, `hsl(${(h + 50) % 360} 70% 25%)`);
+  gradient.addColorStop(0, "#ff4d1f");
+  gradient.addColorStop(1, "#c2300f");
   g.fillStyle = gradient;
   g.fillRect(0, 0, size, size);
-  g.fillStyle = "#fff";
+  g.fillStyle = "#0e0d0c";
   g.font = "800 260px system-ui, sans-serif";
   g.textAlign = "center";
   g.textBaseline = "middle";
-  g.shadowColor = "rgb(0 0 0 / 0.35)";
-  g.shadowBlur = 24;
   g.fillText(initial(song), size / 2, size / 2 + 12);
   const url = canvas.toDataURL("image/png");
   artCache.set(song.id, url);
