@@ -1745,7 +1745,10 @@ seek.addEventListener("change", () => {
   seeking = false;
 });
 
-$("volume").addEventListener("input", (e) => (audio.volume = Number(e.target.value)));
+$("volume").addEventListener("input", (e) => {
+  audio.volume = Number(e.target.value);
+  setIcon($("volume-icon"), audio.volume === 0 ? "volume-off" : "volume");
+});
 
 
 /* ---------- Visualizador ---------- */

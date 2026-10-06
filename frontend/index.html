@@ -29,6 +29,8 @@
     <symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.5-1.5 3-3.2 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.8 0-3 .5-4.5 2-1.5-1.5-2.7-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4 3 5.5l7 7z"/></symbol>
     <symbol id="i-share" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/></symbol>
     <symbol id="i-lyrics" viewBox="0 0 24 24"><path d="M4 6h16M4 11h16M4 16h10"/></symbol>
+    <symbol id="i-volume" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></symbol>
+    <symbol id="i-volume-off" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM22 9l-6 6M16 9l6 6"/></symbol>
     <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 10v4M8 6v12M12 3v18M16 8v8M20 11v2"/></symbol>
     <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
     <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
@@ -111,8 +113,8 @@
       </div>
 
       <div class="volume">
-        <button type="button" class="ctrl" id="viz-open" aria-label="Visualizador" title="Visualizador">🌀</button>
-        <span aria-hidden="true">🔊</span>
+        <button type="button" class="ctrl" id="viz-open" aria-label="Visualizador" title="Visualizador"><svg class="ic"><use href="#i-bars"/></svg></button>
+        <svg class="ic vol-ic" id="volume-icon" aria-hidden="true"><use href="#i-volume"/></svg>
         <input type="range" id="volume" min="0" max="1" step="0.01" value="1" aria-label="Volumen" />
       </div>
 
