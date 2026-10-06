@@ -150,6 +150,7 @@ def main() -> int:
     parser.add_argument("--overwrite", action="store_true", help="reemplaza letras ya guardadas")
     parser.add_argument("--model", default="small", help="tiny, base, small, medium, large-v3")
     parser.add_argument("--text", help="archivo .txt con la letra correcta (un verso por línea); requiere --ids con una sola canción")
+    parser.add_argument("--vad", action="store_true", help="filtra silencios antes de transcribir (puede descartar canciones con beat fuerte)")
     parser.add_argument("--language", default="es", help="idioma de las canciones (es, en...; vacío = detectar)")
     args = parser.parse_args()
 
@@ -202,7 +203,7 @@ def main() -> int:
                 segments, info = model.transcribe(
                     str(path),
                     language=args.language or None,
-                    vad_filter=True,
+                    vad_filter=args.vad,  # apagado por defecto: con beats fuertes descartaba casi toda la canción
                     condition_on_previous_text=False,
                     word_timestamps=True,  # tiempo de cada palabra: los segmentos enteros llegan muy imprecisos
                 )
