@@ -165,6 +165,10 @@ button { cursor: pointer; }
   gap: 20px;
 }
 
+/* Ángulos de la inclinación al pasar el mouse: registrados para que cambien con suavidad. */
+@property --rx { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+@property --ry { syntax: "<angle>"; inherits: true; initial-value: 0deg; }
+
 .card, #library-list li { user-select: none; } /* el doble clic no debe seleccionar texto */
 .card {
   position: relative;
@@ -172,13 +176,12 @@ button { cursor: pointer; }
   border-radius: var(--radius);
   padding: 14px;
   cursor: pointer;
-  transition: background 0.15s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s;
+  transition: background 0.15s, transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s, --rx 0.2s ease-out, --ry 0.2s ease-out;
   /* Al pasar el mouse se inclina hacia donde está el cursor y se levanta (--rx / --ry los pone el JS). */
   transform: perspective(800px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) translateY(var(--lift, 0px));
   will-change: transform;
 }
 .card:hover { background: var(--panel-hover); --lift: -6px; box-shadow: 0 18px 36px rgb(0 0 0 / 0.45); z-index: 2; }
-.card.tilting { transition: background 0.15s, box-shadow 0.25s, transform 0.08s linear; } /* sigue al cursor sin retraso */
 @media (prefers-reduced-motion: reduce), (hover: none) { .card, .card:hover { transform: none; box-shadow: none; } }
 .card-cover {
   position: relative;
@@ -452,7 +455,12 @@ button { cursor: pointer; }
   height: 100%;
   -webkit-box-reflect: below 6px linear-gradient(transparent 68%, rgb(255 255 255 / 0.18));
 }
-.rec.active .rec-inner { transform: scale(var(--pulse, 1)); }
+.rec.active .rec-inner {
+  /* El disco del centro se inclina hacia el cursor; el latido (--pulse) lo sigue fijando app.js. */
+  transform: perspective(1100px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)) scale(var(--pulse, 1));
+  transition: --rx 0.2s ease-out, --ry 0.2s ease-out;
+}
+@media (prefers-reduced-motion: reduce), (hover: none) { .rec.active .rec-inner { transform: scale(var(--pulse, 1)); } }
 
 .rec-sleeve {
   position: absolute;
