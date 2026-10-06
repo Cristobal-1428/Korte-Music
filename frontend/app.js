@@ -467,6 +467,27 @@ function makeCard(song) {
   return card;
 }
 
+// Tarjetas del computador: se inclinan hacia el cursor (como en Spotify) y vuelven a su sitio al salir.
+const TILT_DEG = 9;
+document.addEventListener("pointermove", (e) => {
+  if (e.pointerType !== "mouse") return;
+  const card = e.target instanceof Element ? e.target.closest(".card") : null;
+  if (!card) return;
+  const r = card.getBoundingClientRect();
+  const x = (e.clientX - r.left) / r.width - 0.5; // -0.5 (izquierda) .. 0.5 (derecha)
+  const y = (e.clientY - r.top) / r.height - 0.5;
+  card.classList.add("tilting");
+  card.style.setProperty("--ry", `${(x * 2 * TILT_DEG).toFixed(2)}deg`);
+  card.style.setProperty("--rx", `${(-y * 2 * TILT_DEG).toFixed(2)}deg`);
+});
+document.addEventListener("pointerout", (e) => {
+  const card = e.target instanceof Element ? e.target.closest(".card") : null;
+  if (!card || card.contains(e.relatedTarget)) return;
+  card.classList.remove("tilting");
+  card.style.removeProperty("--rx");
+  card.style.removeProperty("--ry");
+});
+
 function renderLibrary() {
   libraryList.replaceChildren();
   const list = visibleSongs();
