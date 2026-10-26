@@ -1228,6 +1228,28 @@ function authField(type, placeholder, autocomplete) {
   return input;
 }
 
+// Campo de contraseña con un ojo para verla u ocultarla. Devuelve el contenedor; el input queda en .input.
+function passwordField(placeholder, autocomplete) {
+  const input = authField("password", placeholder, autocomplete);
+  input.minLength = 6;
+  const eye = el("button", "auth-eye");
+  eye.type = "button";
+  eye.setAttribute("aria-label", "Mostrar contraseña");
+  eye.setAttribute("aria-pressed", "false");
+  eye.innerHTML = '<svg class="ic"><use href="#i-eye"/></svg>';
+  eye.addEventListener("click", () => {
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    eye.setAttribute("aria-label", show ? "Ocultar contraseña" : "Mostrar contraseña");
+    eye.setAttribute("aria-pressed", String(show));
+    eye.querySelector("use").setAttribute("href", show ? "#i-eye-off" : "#i-eye");
+  });
+  const wrap = el("div", "auth-pass");
+  wrap.input = input;
+  wrap.append(input, eye);
+  return wrap;
+}
+
 async function signOut() {
   forgetAdmin();
   await Auth.signOut(); // el cambio de sesión recarga la biblioteca
@@ -1295,8 +1317,8 @@ function signedOutContent(repaint) {
     tabs.append(tab);
   }
   const email = authField("email", "Correo", "email");
-  const password = authField("password", "Contraseña", authMode === "signup" ? "new-password" : "current-password");
-  password.minLength = 6;
+  const passwordBox = passwordField("Contraseña", authMode === "signup" ? "new-password" : "current-password");
+  const password = passwordBox.input;
   const submit = el("button", "big-play", authMode === "signup" ? "Crear cuenta" : "Entrar");
   submit.type = "submit";
   const msg = el("p", "auth-msg");
@@ -1306,7 +1328,7 @@ function signedOutContent(repaint) {
     accountNotice = "";
   }
   const form = el("form", "auth-form");
-  form.append(email, password, submit);
+  form.append(email, passwordBox, submit);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     submit.disabled = true;
@@ -1367,13 +1389,13 @@ function signedOutContent(repaint) {
 }
 
 function newPasswordForm(repaint) {
-  const password = authField("password", "Nueva contraseña", "new-password");
-  password.minLength = 6;
+  const passwordBox = passwordField("Nueva contraseña", "new-password");
+  const password = passwordBox.input;
   const save = el("button", "big-play", "Guardar contraseña");
   save.type = "submit";
   const msg = el("p", "auth-msg");
   const form = el("form", "auth-form");
-  form.append(password, save, msg);
+  form.append(passwordBox, save, msg);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     save.disabled = true;

@@ -1011,6 +1011,11 @@ html:not(.is-admin) .admin-only { display: none !important; } /* subir / editar 
 .auth-form { display: grid; gap: 10px; width: 100%; }
 .auth-input { padding: 13px 18px; border-radius: 999px; border: 1px solid #3a3a3d; background: var(--panel); outline: none; text-align: center; min-width: 0; width: 100%; }
 .auth-input:focus { border-color: #666; }
+.auth-pass { position: relative; }
+.auth-pass .auth-input { padding-left: 48px; padding-right: 48px; } /* mismo margen a ambos lados para que el texto siga centrado */
+.auth-eye { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; padding: 0; color: var(--muted); }
+.auth-eye:hover, .auth-eye[aria-pressed="true"] { color: var(--text); }
+.auth-eye .ic { width: 20px; height: 20px; }
 .auth-form .big-play { justify-content: center; }
 .auth-msg { min-height: 1.2em; margin: 0; color: var(--muted); font-size: 0.9rem; line-height: 1.4; }
 .auth-msg.error { color: #ff6b7d; }
