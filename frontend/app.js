@@ -2439,6 +2439,23 @@ function springBack() {
   anim.finished.then(resetDrag, resetDrag);
 }
 
+// Lo que sigue al dedo al deslizar a los lados: la carátula y el título.
+const swipeEls = () => [...npf.querySelectorAll(".npf-art, .npf-meta")];
+
+// No deslizó lo suficiente: vuelve al centro.
+function sideBack() {
+  swipeEls().forEach((el) => {
+    const from = new DOMMatrix(getComputedStyle(el).transform).m41;
+    el.style.transform = "";
+    if (!reducedMotion && from) {
+      el.animate([{ transform: `translateX(${from}px)` }, { transform: "translateX(0)" }], {
+        duration: 220,
+        easing: "cubic-bezier(.2,.8,.2,1)",
+      });
+    }
+  });
+}
+
 npf.addEventListener("pointerdown", (e) => {
   const now = performance.now();
   swipe = e.target.closest("button, canvas, input, .npf-lyrics")
@@ -2457,6 +2474,10 @@ npf.addEventListener("pointermove", (e) => {
       npf.classList.add("dragging");
     }
   }
+  if (swipe.mode === "side") {
+    swipeEls().forEach((el) => (el.style.transform = `translateX(${dx}px)`));
+    return;
+  }
   if (swipe.mode !== "down") return;
   const now = performance.now();
   swipe.v = (e.clientY - swipe.lastY) / Math.max(1, now - swipe.lastT);
@@ -2466,6 +2487,7 @@ npf.addEventListener("pointermove", (e) => {
 });
 npf.addEventListener("pointercancel", () => {
   if (swipe?.mode === "down") springBack();
+  if (swipe?.mode === "side") sideBack();
   swipe = null;
 });
 npf.addEventListener("pointerup", (e) => {
@@ -2477,9 +2499,34 @@ npf.addEventListener("pointerup", (e) => {
   if (s.mode === "down") {
     return dy > DRAG_CLOSE_PX || (dy > DRAG_MIN_PX && s.v > DRAG_CLOSE_SPEED) ? slideAway(Math.max(0, dy)) : springBack();
   }
-  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-  step(dx < 0 ? 1 : -1);
-  syncNowPlaying();
+  if (s.mode !== "side") return;
+  if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return sideBack();
+  const dir = dx < 0 ? 1 : -1;
+  if (reducedMotion) {
+    swipeEls().forEach((el) => (el.style.transform = ""));
+    step(dir);
+    return syncNowPlaying();
+  }
+  // La carátula y el título salen hacia donde se deslizó; entra la nueva canción desde el lado contrario.
+  const W = npf.clientWidth;
+  const out = dir === 1 ? -W : W;
+  const els = swipeEls();
+  const outs = els.map((el) => el.animate(
+    [{ transform: `translateX(${dx}px)`, opacity: 1 }, { transform: `translateX(${out}px)`, opacity: 0 }],
+    { duration: 160, easing: "ease-in", fill: "forwards" },
+  ));
+  Promise.all(outs.map((a) => a.finished)).then(() => {
+    step(dir);
+    syncNowPlaying();
+    els.forEach((el) => {
+      el.style.transform = "";
+      el.animate(
+        [{ transform: `translateX(${-out}px)`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }],
+        { duration: 220, easing: "cubic-bezier(.2,.8,.2,1)" },
+      );
+    });
+    outs.forEach((a) => a.cancel());
+  }, () => els.forEach((el) => (el.style.transform = "")));
 });
 $("npf-shuffle").addEventListener("click", () => {
   shuffleOn = !shuffleOn;
