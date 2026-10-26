@@ -1250,6 +1250,15 @@ function passwordField(placeholder, autocomplete) {
   return wrap;
 }
 
+// Reglas de una contraseña nueva: mínimo 6 caracteres, con al menos un símbolo (algo que no sea letra ni número) y repetida igual.
+const PASSWORD_HINT = "Mínimo 6 caracteres e incluye al menos un símbolo (por ejemplo ! @ # $ . _).";
+function passwordProblem(password, repeat) {
+  if (password.length < 6) return "La contraseña debe tener al menos 6 caracteres.";
+  if (!/[^\p{L}\p{N}\s]/u.test(password)) return "La contraseña debe incluir al menos un símbolo (por ejemplo ! @ # $ . _).";
+  if (password !== repeat) return "Las contraseñas no coinciden.";
+  return "";
+}
+
 async function signOut() {
   forgetAdmin();
   await Auth.signOut(); // el cambio de sesión recarga la biblioteca
@@ -1319,7 +1328,9 @@ function signedOutContent(repaint) {
   const email = authField("email", "Correo", "email");
   const passwordBox = passwordField("Contraseña", authMode === "signup" ? "new-password" : "current-password");
   const password = passwordBox.input;
-  const submit = el("button", "big-play", authMode === "signup" ? "Crear cuenta" : "Entrar");
+  const signup = authMode === "signup";
+  const repeatBox = signup ? passwordField("Repite la contraseña", "new-password") : null;
+  const submit = el("button", "big-play", signup ? "Crear cuenta" : "Entrar");
   submit.type = "submit";
   const msg = el("p", "auth-msg");
   msg.setAttribute("role", "status");
@@ -1328,9 +1339,15 @@ function signedOutContent(repaint) {
     accountNotice = "";
   }
   const form = el("form", "auth-form");
-  form.append(email, passwordBox, submit);
+  form.append(email, passwordBox, ...(signup ? [repeatBox, el("p", "auth-hint", PASSWORD_HINT)] : []), submit);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const problem = signup ? passwordProblem(password.value, repeatBox.input.value) : "";
+    if (problem) {
+      msg.className = "auth-msg error";
+      msg.textContent = problem;
+      return;
+    }
     submit.disabled = true;
     msg.className = "auth-msg";
     msg.textContent = "Un momento…";
@@ -1391,13 +1408,20 @@ function signedOutContent(repaint) {
 function newPasswordForm(repaint) {
   const passwordBox = passwordField("Nueva contraseña", "new-password");
   const password = passwordBox.input;
+  const repeatBox = passwordField("Repite la contraseña", "new-password");
   const save = el("button", "big-play", "Guardar contraseña");
   save.type = "submit";
   const msg = el("p", "auth-msg");
   const form = el("form", "auth-form");
-  form.append(passwordBox, save, msg);
+  form.append(passwordBox, repeatBox, el("p", "auth-hint", PASSWORD_HINT), save, msg);
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
+    const problem = passwordProblem(password.value, repeatBox.input.value);
+    if (problem) {
+      msg.className = "auth-msg error";
+      msg.textContent = problem;
+      return;
+    }
     save.disabled = true;
     const res = await Auth.updatePassword(password.value);
     save.disabled = false;
